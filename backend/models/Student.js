@@ -66,9 +66,7 @@ studentSchema.pre('save', function(next) {
   next();
 });
 
-// Create index for efficient querying
-studentSchema.index({ rollNo: 1 });
-studentSchema.index({ email: 1 });
+// Create index for efficient querying (only for non-unique fields)
 studentSchema.index({ year: 1, division: 1 });
 
 module.exports = mongoose.model('Student', studentSchema); 

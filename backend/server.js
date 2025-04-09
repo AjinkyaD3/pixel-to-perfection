@@ -31,10 +31,12 @@ const io = new Server(httpServer, {
   }
 });
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// Connect to MongoDB - only if not already connected in test environment
+if (mongoose.connection.readyState === 0) {
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
+}
 
 // Middleware
 app.use(helmet());
@@ -67,11 +69,14 @@ app.use('/api/members', memberRoutes);
 // Error handling
 app.use(errorHandler);
 
-// Start server
-const PORT = 5000;
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Start server only if this file is run directly (not imported in tests)
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  httpServer.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
-// Export io for use in other files
-module.exports = { io }; 
+// Export app for testing
+module.exports = app;
+module.exports.io = io; 
