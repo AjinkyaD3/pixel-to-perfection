@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
   Menu, X, Zap, Users, Calendar, LayoutDashboard, 
@@ -13,6 +12,8 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const location = useLocation();
   
   // Handle scroll effects
   useEffect(() => {
@@ -41,13 +42,15 @@ const Navbar = () => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [isOpen]);
 
+  const isAuthPage = location.pathname === '/signin' || location.pathname === '/signup';
+
   return (
     <header className={`sticky top-0 z-50 w-full transition-all duration-300 ${scrolled ? 'backdrop-blur-xl bg-background/60 border-b border-border/50 shadow-lg' : 'bg-transparent'}`}>
       <div className="container flex h-20 items-center justify-between">
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2">
             <Zap className="h-7 w-7 text-neon-blue" />
-            <span className="text-2xl font-bold bg-clip-text text-transparent bg-neon-gradient animate-gradient-animation bg-300% font-helvetica">TechSoc</span>
+            <span className="text-2xl font-extrabold bg-clip-text text-transparent bg-neon-gradient animate-gradient-animation bg-300% font-helvetica"> ACES </span>
           </Link>
         </div>
 
@@ -69,17 +72,30 @@ const Navbar = () => {
             About Us
             <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-neon-blue group-hover:w-full transition-all duration-300"></span>
           </Link>
+          <Link to="/join" className="text-base font-medium tracking-wide text-foreground hover:text-neon-blue transition-colors relative group font-helvetica">
+            Join Community
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-neon-blue group-hover:w-full transition-all duration-300"></span>
+          </Link>
         </nav>
 
-        <div className="hidden md:flex items-center gap-4">
-          <Button variant="outline" className="border-neon-blue/50 text-neon-blue hover:bg-neon-blue/10 hover:text-neon-blue font-helvetica">
-            Sign In
-          </Button>
-          <Button className="relative overflow-hidden group font-helvetica font-bold">
-            <span className="absolute inset-0 bg-neon-gradient animate-gradient-animation bg-300%"></span>
-            <span className="relative">Register</span>
-          </Button>
-        </div>
+        {!isAuthPage && (
+          <div className="hidden md:flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              className="border-neon-blue/50 text-neon-blue hover:bg-neon-blue/10 hover:text-neon-blue font-helvetica"
+              onClick={() => navigate('/signin')}
+            >
+              Sign In
+            </Button>
+            <Button 
+              className="relative overflow-hidden group font-helvetica font-bold"
+              onClick={() => navigate('/signup')}
+            >
+              <span className="absolute inset-0 bg-neon-gradient animate-gradient-animation bg-300%"></span>
+              <span className="relative">Register</span>
+            </Button>
+          </div>
+        )}
 
         {/* Mobile Menu Button */}
         <button
@@ -133,7 +149,7 @@ const Navbar = () => {
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: 0.1 }}
                   >
-                    <span className="relative">
+                    <span className="relative ">
                       Home
                       <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-neon-blue group-hover:w-full transition-all duration-300"></span>
                     </span>
@@ -197,29 +213,51 @@ const Navbar = () => {
                     <ChevronRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   </motion.div>
                 </Link>
+
+                <Link 
+                  to="/join" 
+                  className="group flex items-center text-3xl font-bold w-full justify-center font-helvetica"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <motion.div
+                    className="flex items-center gap-2"
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <span className="relative">
+                      Join Community
+                      <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-neon-blue group-hover:w-full transition-all duration-300"></span>
+                    </span>
+                    <ChevronRight className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  </motion.div>
+                </Link>
+
+                {!isAuthPage && (
+                  <div className="flex flex-col gap-4 w-full max-w-xs mt-8">
+                    <Button 
+                      variant="outline" 
+                      className="border-neon-blue/50 text-neon-blue hover:bg-neon-blue/10 hover:text-neon-blue font-helvetica"
+                      onClick={() => {
+                        navigate('/signin');
+                        setIsOpen(false);
+                      }}
+                    >
+                      Sign In
+                    </Button>
+                    <Button 
+                      className="relative overflow-hidden group font-helvetica font-bold"
+                      onClick={() => {
+                        navigate('/signup');
+                        setIsOpen(false);
+                      }}
+                    >
+                      <span className="absolute inset-0 bg-neon-gradient animate-gradient-animation bg-300%"></span>
+                      <span className="relative">Register</span>
+                    </Button>
+                  </div>
+                )}
               </nav>
-              
-              <div className="flex flex-col space-y-4 mt-8">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <Button variant="outline" className="w-full border-neon-blue/50 text-neon-blue hover:bg-neon-blue/10 font-helvetica text-lg">
-                    Sign In
-                  </Button>
-                </motion.div>
-                
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <Button className="w-full bg-neon-gradient animate-gradient-animation font-helvetica text-lg font-bold">
-                    Register
-                  </Button>
-                </motion.div>
-              </div>
             </div>
           </motion.div>
         )}

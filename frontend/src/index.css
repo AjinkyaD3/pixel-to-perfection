@@ -50,13 +50,13 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Helvetica Now', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: -0.02em;
   }
 
   button {
     font-family: 'Helvetica Now', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-weight: 700;
+    font-weight: 100;
   }
 }
 
@@ -133,7 +133,7 @@
   /* Typography */
   .font-helvetica {
     font-family: 'Helvetica Now', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-weight: 700;
+    font-weight: 500;
   }
   
   /* Cursor specific utilities */

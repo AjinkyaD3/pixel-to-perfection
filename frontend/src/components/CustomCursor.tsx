@@ -73,48 +73,7 @@ export default function CustomCursor() {
   
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: `
-        body {
-          cursor: none;
-        }
-        a, button, [role="button"], input, select, textarea, .card-hover {
-          cursor: none;
-        }
-      `}} />
-      <div 
-        className={`fixed pointer-events-none z-50 mix-blend-difference transform -translate-x-1/2 -translate-y-1/2 ${isClicked ? 'scale-75' : 'scale-100'} ${isHovering ? 'scale-150' : ''}`}
-        style={{ 
-          left: `${position.x}px`, 
-          top: `${position.y}px`,
-          transition: 'transform 0.15s ease-out'
-        }}
-      >
-        <div 
-          className={`rounded-full bg-white transition-all duration-150 ease-out ${isPointer ? 'w-6 h-6 opacity-40' : 'w-4 h-4'}`}
-        />
-      </div>
-      <div 
-        className={`fixed pointer-events-none z-50 mix-blend-difference transform -translate-x-1/2 -translate-y-1/2 ${isHovering ? 'scale-150' : ''}`}
-        style={{ 
-          left: `${position.x}px`, 
-          top: `${position.y}px`,
-          transition: 'transform 0.2s ease-out'
-        }}
-      >
-        <div 
-          className={`rounded-full border-2 border-white transition-all duration-150 ${isPointer ? 'w-10 h-10' : 'w-8 h-8'}`}
-        />
-      </div>
-      <div 
-        className="fixed pointer-events-none z-40 mix-blend-difference transform -translate-x-1/2 -translate-y-1/2 opacity-20"
-        style={{ 
-          left: `${position.x}px`, 
-          top: `${position.y}px`,
-          filter: 'blur(4px)'
-        }}
-      >
-        <div className="rounded-full bg-white w-12 h-12" />
-      </div>
+    
     </>
   );
 }
