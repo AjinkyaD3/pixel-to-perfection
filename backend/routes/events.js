@@ -13,7 +13,8 @@ const {
   registerForEvent,
   checkInEvent,
   generateQRCode,
-  getEventAnalytics
+  getEventAnalytics,
+  exportEvents
 } = require('../controllers/events');
 
 // Apply rate limiting to all routes
@@ -21,6 +22,15 @@ router.use(generalLimiter);
 
 // Get all events
 router.get('/', getEvents);
+
+// Get event analytics
+router.get('/analytics', [protect, authorize('admin')], getEventAnalytics);
+
+// Export events to Excel
+router.get('/export', [protect, authorize('admin', 'committee')], exportEvents);
+
+// Get QR code for an event
+router.get('/:id/qrcode', [protect, authorize('admin', 'committee')], generateQRCode);
 
 // Get single event
 router.get('/:id', getEvent);
@@ -95,26 +105,6 @@ router.post(
     authorize('committee')
   ],
   checkInEvent
-);
-
-// Generate QR code for event (protected route)
-router.get(
-  '/:id/qrcode',
-  [
-    protect,
-    authorize('admin', 'committee')
-  ],
-  generateQRCode
-);
-
-// Get event analytics (protected route)
-router.get(
-  '/analytics',
-  [
-    protect,
-    authorize('admin', 'committee')
-  ],
-  getEventAnalytics
 );
 
 module.exports = router; 

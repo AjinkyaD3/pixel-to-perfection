@@ -21,4 +21,6 @@ class ErrorResponse extends Error {
   }
 }
 
-module.exports = ErrorResponse; 
+// Export both as named export and default export for compatibility
+module.exports = ErrorResponse;
+module.exports.ErrorResponse = ErrorResponse; 

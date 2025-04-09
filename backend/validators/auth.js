@@ -28,7 +28,30 @@ const signupValidation = [
   body('role')
     .optional()
     .isIn(['admin', 'committee', 'student'])
-    .withMessage('Invalid role')
+    .withMessage('Invalid role'),
+
+  // Student-specific fields, required when role is 'student'
+  body('rollNumber')
+    .if(body('role').equals('student'))
+    .trim()
+    .notEmpty()
+    .withMessage('Roll Number is required for students'),
+  
+  body('year')
+    .if(body('role').equals('student'))
+    .trim()
+    .notEmpty()
+    .withMessage('Year is required for students')
+    .isIn(['FE', 'SE', 'TE', 'BE'])
+    .withMessage('Invalid year value'),
+  
+  body('division')
+    .if(body('role').equals('student'))
+    .trim()
+    .notEmpty()
+    .withMessage('Division is required for students')
+    .isIn(['A', 'B', 'C'])
+    .withMessage('Invalid division value')
 ];
 
 const loginValidation = [

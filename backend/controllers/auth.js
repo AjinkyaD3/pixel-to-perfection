@@ -2,7 +2,7 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const ErrorResponse = require('../utils/errorResponse');
+const { ErrorResponse } = require('../utils/errorResponse');
 const sendEmail = require('../utils/sendEmail');
 const { OAuth2Client } = require('google-auth-library');
 const logger = require('../utils/logger');
@@ -31,39 +31,49 @@ const transporter = nodemailer.createTransport({
 // @access  Public
 exports.signup = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const {
+      name,
+      email,
+      password,
+      role,
+      rollNumber,
+      year,
+      division,
+      skills,
+      profilePicture,
+    } = req.body;
 
-    // Check if user exists
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return next(new ErrorResponse('User already exists', 400));
+    // 1. Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return next(new ErrorResponse("User already exists", 400));
     }
 
-    // Create user
+    // 2. Create new user with all required fields
     const user = await User.create({
       name,
       email,
       password,
-      role
+      role,
+      rollNumber,
+      year,
+      division,
+      skills: skills || [],
+      profilePicture,
     });
 
-    // Generate verification token
-    const verificationToken = user.getVerificationToken();
-    await user.save();
+    // 3. Generate email verification token
+    // const verificationToken = user.generateEmailVerificationToken();
+    await user.save({ validateBeforeSave: true });
 
-    // Send verification email
-    const verificationUrl = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
-    await sendEmail({
-      to: user.email,
-      subject: 'Email Verification',
-      html: `
-        <h1>Welcome to ACES Galaxy!</h1>
-        <p>Please verify your email by clicking the link below:</p>
-        <a href="${verificationUrl}">Verify Email</a>
-      `
+    // 4. Send verification email
+    // await sendVerificationEmail(user.email, verificationToken);
+
+    // 5. Return response
+    res.status(201).json({
+      success: true,
+      message: "User registered successfully. Please verify your email.",
     });
-
-    sendTokenResponse(user, 201, res);
   } catch (error) {
     next(error);
   }
@@ -76,10 +86,20 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    // Validate email & password
+    if (!email || !password) {
+      return next(new ErrorResponse('Please provide email and password', 400));
+    }
+
     // Check if user exists
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return next(new ErrorResponse('Invalid credentials', 401));
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return next(new ErrorResponse('This account has been deactivated', 401));
     }
 
     // Check if password matches
@@ -93,8 +113,13 @@ exports.login = async (req, res, next) => {
       return next(new ErrorResponse('Please verify your email first', 401));
     }
 
+    // Update last login
+    user.lastLogin = Date.now();
+    await user.save({ validateBeforeSave: false });
+
     sendTokenResponse(user, 200, res);
   } catch (error) {
+    logger.error(`Login error: ${error.message}`, { stack: error.stack });
     next(error);
   }
 };
@@ -328,10 +353,9 @@ const sendTokenResponse = (user, statusCode, res) => {
   user.refreshToken = refreshToken;
   user.save();
 
+  const cookieExpire = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
   const options = {
-    expires: new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000
-    ),
+    expires: new Date(Date.now() + cookieExpire),
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production'
   };

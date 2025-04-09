@@ -31,7 +31,7 @@ const eventSchema = new mongoose.Schema({
   speaker: {
     name: {
       type: String,
-      required: [true, 'Speaker name is required']
+      required: false
     },
     designation: String,
     organization: String,
@@ -107,7 +107,7 @@ const eventSchema = new mongoose.Schema({
 });
 
 // Pre-save middleware to update updatedAt
-eventSchema.pre('save', function(next) {
+eventSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });

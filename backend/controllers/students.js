@@ -1,7 +1,7 @@
 const { validationResult } = require('express-validator');
 const csv = require('fast-csv');
 const Student = require('../models/Student');
-const ErrorResponse = require('../utils/errorResponse');
+const { ErrorResponse } = require('../utils/errorResponse');
 const logger = require('../utils/logger');
 
 // @desc    Get all students with pagination and filters
@@ -76,11 +76,30 @@ exports.createStudent = async (req, res, next) => {
       return next(new ErrorResponse(errors.array()[0].msg, 400));
     }
 
+    // Extract and validate required fields
+    const { name, rollNo, division, year, email, skills, avatar } = req.body;
+    
+    if (!name || !rollNo || !division || !year || !email) {
+      return next(new ErrorResponse('Please provide all required fields: name, rollNo, division, year, and email', 400));
+    }
+    
+    // Validate division and year
+    const validDivisions = ['A', 'B', 'C'];
+    const validYears = ['FE', 'SE', 'TE', 'BE'];
+    
+    if (!validDivisions.includes(division)) {
+      return next(new ErrorResponse(`Division must be one of: ${validDivisions.join(', ')}`, 400));
+    }
+    
+    if (!validYears.includes(year)) {
+      return next(new ErrorResponse(`Year must be one of: ${validYears.join(', ')}`, 400));
+    }
+
     // Check if student with same roll number or email exists
     const existingStudent = await Student.findOne({
       $or: [
-        { rollNo: req.body.rollNo },
-        { email: req.body.email }
+        { rollNo: rollNo },
+        { email: email }
       ]
     });
 
@@ -88,7 +107,16 @@ exports.createStudent = async (req, res, next) => {
       return next(new ErrorResponse('Student with this roll number or email already exists', 400));
     }
 
-    const student = await Student.create(req.body);
+    // Create student with all required fields
+    const student = await Student.create({
+      name,
+      rollNo,
+      division,
+      year,
+      email,
+      skills: skills || [],
+      avatar: avatar || 'default-avatar.png'
+    });
 
     res.status(201).json({
       success: true,

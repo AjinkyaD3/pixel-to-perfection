@@ -1,107 +1,71 @@
 const express = require('express');
-const router = express.Router();
-const { check } = require('express-validator');
-const { protect, authorize } = require('../middleware/auth');
-const validateRequest = require('../middleware/validateRequest');
-const { generalLimiter } = require('../middleware/rateLimiter');
-const {
-  getStudents,
-  getStudent,
-  createStudent,
-  updateStudent,
+const { body } = require('express-validator');
+const rateLimit = require('express-rate-limit');
+const { 
+  getStudents, 
+  getStudent, 
+  createStudent, 
+  updateStudent, 
   deleteStudent,
-  uploadStudents,
-  getStudentAnalytics,
-  exportStudents
+  uploadStudents
 } = require('../controllers/students');
+const { protect, authorize } = require('../middleware/auth');
 
-// Apply rate limiting to all routes
-router.use(generalLimiter);
+const router = express.Router();
 
-// Get all students
-router.get('/', getStudents);
+// Apply rate limiting to all student routes
+const studentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again after 15 minutes'
+});
 
-// Get single student
-router.get('/:id', getStudent);
+router.use(studentLimiter);
 
-// Create student (protected route)
-router.post(
-  '/',
-  [
-    protect,
+// Get all students and create a student
+router.route('/')
+  .get(protect, getStudents)
+  .post(
+    protect, 
     authorize('admin', 'committee'),
     [
-      check('rollNumber', 'Roll number is required').notEmpty(),
-      check('name', 'Name is required').notEmpty(),
-      check('email', 'Please include a valid email').isEmail(),
-      check('year', 'Year is required').notEmpty(),
-      check('division', 'Division is required').notEmpty()
+      body('name').notEmpty().withMessage('Name is required'),
+      body('rollNo').notEmpty().withMessage('Roll Number is required'),
+      body('division').notEmpty().withMessage('Division is required'),
+      body('year').notEmpty().withMessage('Year is required'),
+      body('email').isEmail().withMessage('Please include a valid email')
     ],
-    validateRequest
-  ],
-  createStudent
-);
+    createStudent
+  );
 
-// Update student (protected route)
-router.put(
-  '/:id',
-  [
-    protect,
-    authorize('admin', 'committee'),
-    [
-      check('rollNumber', 'Roll number is required').notEmpty(),
-      check('name', 'Name is required').notEmpty(),
-      check('email', 'Please include a valid email').isEmail(),
-      check('year', 'Year is required').notEmpty(),
-      check('division', 'Division is required').notEmpty()
-    ],
-    validateRequest
-  ],
-  updateStudent
-);
-
-// Delete student (protected route)
-router.delete(
-  '/:id',
-  [
-    protect,
-    authorize('admin', 'committee')
-  ],
-  deleteStudent
-);
-
-// Upload students via CSV (protected route)
+// Upload multiple students via CSV
 router.post(
   '/upload',
-  [
-    protect,
-    authorize('admin', 'committee'),
-    [
-      check('file', 'File is required').notEmpty()
-    ],
-    validateRequest
-  ],
+  protect,
+  authorize('admin'),
   uploadStudents
 );
 
-// Get student analytics (protected route)
-router.get(
-  '/analytics',
-  [
+// Get, update and delete student
+router.route('/:id')
+  .get(protect, getStudent)
+  .put(
     protect,
-    authorize('admin', 'committee')
-  ],
-  getStudentAnalytics
-);
-
-// Export students to Excel (protected route)
-router.get(
-  '/export',
-  [
+    authorize('admin', 'committee'),
+    [
+      body('name').optional(),
+      body('rollNo').optional(),
+      body('division').optional(),
+      body('year').optional(),
+      body('email').optional().isEmail().withMessage('Please include a valid email'),
+      body('skills').optional().isArray().withMessage('Skills must be an array')
+    ],
+    updateStudent
+  )
+  .delete(
     protect,
-    authorize('admin', 'committee')
-  ],
-  exportStudents
-);
+    authorize('admin'),
+    deleteStudent
+  );
 
 module.exports = router; 
