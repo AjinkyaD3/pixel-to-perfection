@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 226 70% 5%;
+    --foreground: 210 40% 98%;
+
+    --card: 226 70% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 226 70% 7%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 202 100% 50%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 260 60% 50%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 226 70% 15%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 260 60% 50%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 226 70% 20%;
+    --input: 226 70% 15%;
+    --ring: 202 100% 50%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image: radial-gradient(
+      circle at center,
+      rgba(0, 238, 255, 0.05) 0%,
+      rgba(0, 0, 0, 0) 70%
+    );
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Helvetica Now', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  button {
+    font-family: 'Helvetica Now', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+  }
+}
+
+@layer components {
+  .hero-glow {
+    @apply relative;
+  }
+  
+  .hero-glow::before {
+    content: "";
+    @apply absolute -z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] rounded-full;
+    background: radial-gradient(circle, rgba(0, 238, 255, 0.15) 0%, rgba(0, 0, 0, 0) 50%);
+  }
+  
+  .glass-card {
+    @apply backdrop-blur-md bg-opacity-10 bg-white border border-opacity-20 border-white;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  }
+  
+  .neon-border {
+    @apply relative overflow-hidden rounded-lg;
+  }
+  
+  .neon-border::before {
+    content: "";
+    @apply absolute inset-0 p-[2px] rounded-lg bg-neon-gradient animate-gradient-animation;
+    z-index: -1;
+    background-size: 200% 200%;
+  }
+  
+  .cyber-grid {
+    @apply relative;
+    background-size: 30px 30px;
+    background-image: linear-gradient(rgba(0, 238, 255, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 238, 255, 0.1) 1px, transparent 1px);
+  }
+
+  /* 3D Card Effects */
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+
+  /* Cursor Effects */
+  .cursor-none {
+    cursor: none !important;
+  }
+  
+  .cursor-hover-area {
+    @apply relative;
+  }
+  
+  .cursor-hover-area::after {
+    content: "";
+    @apply absolute inset-0 z-10 pointer-events-auto opacity-0;
+  }
+  
+  /* More tech visual effect classes */
+  .tech-glow {
+    box-shadow: 0 0 15px rgba(0, 238, 255, 0.3), 0 0 30px rgba(0, 238, 255, 0.1);
+  }
+}
+
+@layer utilities {
+  /* Animations */
+  .animate-cursor-blink {
+    animation: cursor-blink 1.5s infinite;
+  }
+
+  @keyframes cursor-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Typography */
+  .font-helvetica {
+    font-family: 'Helvetica Now', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 700;
+  }
+  
+  /* Cursor specific utilities */
+  .cursor-blend-difference {
+    mix-blend-mode: difference;
+  }
+  
+  .cursor-blend-overlay {
+    mix-blend-mode: overlay;
+  }
+}
