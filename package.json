@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "test": "cd backend && npm test",
+    "test:local": "cd backend && npm run test:local",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  }
+} 
