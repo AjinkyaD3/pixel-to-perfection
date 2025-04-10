@@ -17,9 +17,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { authService } from "@/lib/api";
 
-// Set to true during development to bypass actual API calls
-const DEBUG_MODE = false; // Disable debug mode to use actual API calls
-
 // Special registration codes for admin and committee roles
 // In a real app, these would be managed securely, not hardcoded
 const ADMIN_CODE = "ADMIN123";
@@ -112,31 +109,8 @@ const SignUp: React.FC = () => {
         registrationCode: formData.registrationCode,
       };
 
-      let data;
-
-      if (DEBUG_MODE) {
-        // Mock response for debugging/development
-        console.log("DEBUG MODE: Using mock signup data");
-        data = {
-          token: "mock-token-user",
-          user: {
-            _id: Math.random().toString(36).substring(2, 9),
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-          },
-        };
-
-        // Store mock data in localStorage
-        localStorage.setItem("pixel_to_perfection_token", data.token);
-        localStorage.setItem(
-          "pixel_to_perfection_user",
-          JSON.stringify(data.user)
-        );
-      } else {
-        // Make actual API call
-        data = await authService.signup(userData);
-      }
+      // Make actual API call
+      const data = await authService.signup(userData);
 
       toast({
         title: "Success",

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { Calendar, Star, Award, ChevronRight, Trophy } from 'lucide-react';
+import { Calendar, Star, Award, ChevronRight, Trophy, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import PointsActivity from '@/components/PointsActivity';
+import { authService, eventService, leaderboardService } from '@/lib/api';
+import { useToast } from '@/components/ui/use-toast';
 
 // Define PointsActivity type locally
 interface PointsActivityType {
@@ -20,41 +22,98 @@ interface PointsActivityType {
 
 const StudentDashboard = () => {
     const navigate = useNavigate();
+    const { toast } = useToast();
+    const [loading, setLoading] = useState(true);
+    const [userData, setUserData] = useState<any>(null);
+    const [userRanking, setUserRanking] = useState<any>(null);
+    const [upcomingEvents, setUpcomingEvents] = useState([]);
+    const [registeredEvents, setRegisteredEvents] = useState([]);
+    const [recentActivities, setRecentActivities] = useState<PointsActivityType[]>([]);
 
-    // Mock data for recent activities
-    const recentActivities: PointsActivityType[] = [
-        {
-            id: '1',
-            userId: 'user1',
-            description: 'Attended Web Dev Workshop',
-            points: 20,
-            category: 'event',
-            createdAt: '2023-10-15T14:30:00Z'
-        },
-        {
-            id: '2',
-            userId: 'user1',
-            description: 'Early registration for AI Hackathon',
-            points: 15,
-            category: 'registration',
-            createdAt: '2023-10-10T09:15:00Z'
-        },
-        {
-            id: '3',
-            userId: 'user1',
-            description: 'Shared Tech Meet-up on Twitter',
-            points: 10,
-            category: 'social',
-            createdAt: '2023-10-08T18:45:00Z'
-        }
-    ];
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                
+                // Get user profile data
+                const userResponse = await authService.getMe();
+                setUserData(userResponse.data);
 
+                // Get user ranking and badge information
+                try {
+                    const rankingResponse = await leaderboardService.getMyRanking();
+                    setUserRanking(rankingResponse.data);
+                } catch (err) {
+                    console.error('Error fetching ranking:', err);
+                    // If there's an error, we'll just continue without ranking data
+                }
+
+                // Get events data
+                const eventsResponse = await eventService.getEvents({});
+                setUpcomingEvents(eventsResponse.data.filter((event: any) => 
+                    new Date(event.date) > new Date()));
+
+                // For now using placeholder data for activities and registered events
+                // In a real implementation, these would be fetched from the backend
+                setRecentActivities([
+                    {
+                        id: '1',
+                        userId: userResponse.data._id,
+                        description: 'Attended Web Dev Workshop',
+                        points: 20,
+                        category: 'event',
+                        createdAt: '2023-10-15T14:30:00Z'
+                    },
+                    {
+                        id: '2',
+                        userId: userResponse.data._id,
+                        description: 'Early registration for AI Hackathon',
+                        points: 15,
+                        category: 'registration',
+                        createdAt: '2023-10-10T09:15:00Z'
+                    },
+                    {
+                        id: '3',
+                        userId: userResponse.data._id,
+                        description: 'Shared Tech Meet-up on Twitter',
+                        points: 10,
+                        category: 'social',
+                        createdAt: '2023-10-08T18:45:00Z'
+                    }
+                ]);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                toast({
+                    title: "Error",
+                    description: "Failed to load dashboard data",
+                    variant: "destructive"
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [toast]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
+                    <p className="text-lg font-medium">Loading dashboard...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Rest of the component stays the same but uses real data where available
     return (
         <div className="min-h-screen bg-background p-8">
             <div className="max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-foreground">Student Dashboard</h1>
+                        <h1 className="text-3xl font-bold text-foreground">Hello, {userData?.name || 'Student'}</h1>
                         <p className="text-muted-foreground mt-1">View upcoming events and track your progress</p>
                     </div>
                     <Button
@@ -79,7 +138,7 @@ const StudentDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-muted-foreground">Total Points</p>
-                                <p className="text-2xl font-bold text-foreground">350</p>
+                                <p className="text-2xl font-bold text-foreground">{userData?.points || 0}</p>
                             </div>
                         </div>
                     </motion.div>
@@ -96,7 +155,7 @@ const StudentDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-muted-foreground">Events Attended</p>
-                                <p className="text-2xl font-bold text-foreground">8</p>
+                                <p className="text-2xl font-bold text-foreground">{userData?.eventAttendance || 0}</p>
                             </div>
                         </div>
                     </motion.div>
@@ -113,7 +172,7 @@ const StudentDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-muted-foreground">Badges Earned</p>
-                                <p className="text-2xl font-bold text-foreground">1</p>
+                                <p className="text-2xl font-bold text-foreground">{userRanking?.badges?.length || 0}</p>
                             </div>
                         </div>
                     </motion.div>
@@ -198,7 +257,7 @@ const StudentDashboard = () => {
                                 <div className="space-y-4">
                                     <div>
                                         <div className="flex justify-between text-sm font-medium mb-1">
-                                            <span>Current: 350 points</span>
+                                            <span>Current: {userData?.points || 0} points</span>
                                             <span>Goal: 500 points</span>
                                         </div>
                                         <div className="w-full bg-background h-3 rounded-full overflow-hidden">

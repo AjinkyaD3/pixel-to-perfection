@@ -5,6 +5,22 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 const TOKEN_NAME = 'pixel_to_perfection_token';
 const USER_NAME = 'pixel_to_perfection_user';
 
+// Utility function to fix URL paths
+const fixUrlPath = (url: string) => {
+  if (!url) return url;
+  
+  // If already absolute URL, just fix double slashes
+  if (url.startsWith('http')) {
+    return url.replace(/([^:])\/+/g, '$1/');
+  }
+  
+  // If relative path, ensure it starts with a slash
+  const relativePath = url.startsWith('/') ? url : `/${url}`;
+  
+  // Join with base URL and fix any double slashes
+  return `${API_URL.replace('/api', '')}${relativePath}`.replace(/([^:])\/+/g, '$1/');
+};
+
 // Create axios instance with base URL
 const api = axios.create({
   baseURL: API_URL,
@@ -210,6 +226,36 @@ export const announcementService = {
     const response = await api.get('/announcements', { params });
     return response.data;
   },
+  
+  getAnnouncement: async (id: string) => {
+    const response = await api.get(`/announcements/${id}`);
+    return response.data;
+  },
+  
+  createAnnouncement: async (data: any) => {
+    try {
+      const response = await api.post('/announcements', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating announcement:', error);
+      throw error;
+    }
+  },
+  
+  updateAnnouncement: async (id: string, data: any) => {
+    const response = await api.put(`/announcements/${id}`, data);
+    return response.data;
+  },
+  
+  deleteAnnouncement: async (id: string) => {
+    const response = await api.delete(`/announcements/${id}`);
+    return response.data;
+  },
+  
+  pinAnnouncement: async (id: string, isPinned: boolean) => {
+    const response = await api.put(`/announcements/${id}/pin`, { isPinned });
+    return response.data;
+  }
 };
 
 // Budget services
@@ -228,6 +274,11 @@ export const budgetService = {
       console.error('Error creating budget entry:', error);
       throw error;
     }
+  },
+  
+  updateBudgetEntry: async (id: string, data: any) => {
+    const response = await api.put(`/budgets/${id}`, data);
+    return response.data;
   },
   
   deleteBudgetEntry: async (id: string) => {
@@ -293,6 +344,91 @@ export const galleryService = {
     const response = await api.delete(`/gallery/${id}`);
     return response.data;
   },
+};
+
+// Leaderboard services
+export const leaderboardService = {
+  getLeaderboard: async (params: { limit?: number }) => {
+    const response = await api.get('/leaderboard', { params });
+    return response.data;
+  },
+  
+  getBadges: async () => {
+    const response = await api.get('/leaderboard/badges');
+    return response.data;
+  },
+  
+  getMyRanking: async () => {
+    const response = await api.get('/leaderboard/me');
+    return response.data;
+  }
+};
+
+// File Upload services
+export const uploadService = {
+  uploadImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    const response = await api.post('/uploads/image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+  
+  uploadProfileImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('profileImage', file);
+    
+    const response = await api.post('/uploads/profile-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+  
+  uploadEventImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('eventImage', file);
+    
+    const response = await api.post('/uploads/event-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+  
+  uploadGalleryImages: async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+    
+    const response = await api.post('/uploads/gallery', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+  
+  uploadAttachments: async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('attachments', file);
+    });
+    
+    const response = await api.post('/uploads/attachments', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  }
 };
 
 export default api; 

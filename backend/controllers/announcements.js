@@ -126,7 +126,7 @@ exports.createAnnouncement = async (req, res, next) => {
       type,
       targetAudience,
       year: targetAudience === 'specific_year' ? year : undefined,
-      attachments: attachments || [],
+      attachments: typeof attachments === 'string' ? JSON.parse(attachments) : attachments || [],
       pinned: pinned || false,
       createdBy: req.user.id
     });

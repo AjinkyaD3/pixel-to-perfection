@@ -1,57 +1,69 @@
 import React from 'react';
-import { Calendar, Share2, Trophy, Zap } from 'lucide-react';
+import { Calendar, Zap, Users, Share2, Award } from 'lucide-react';
 import { PointsActivity as PointsActivityType } from '@/types';
-import { motion } from 'framer-motion';
 
 interface PointsActivityProps {
     activities: PointsActivityType[];
 }
 
 const PointsActivity: React.FC<PointsActivityProps> = ({ activities }) => {
-    const getActivityIcon = (category: string) => {
+    if (!activities || activities.length === 0) {
+        return (
+            <div className="text-center py-4 text-muted-foreground">
+                No recent activities found.
+            </div>
+        );
+    }
+    
+    // Get the category icon
+    const getCategoryIcon = (category: string) => {
         switch (category) {
             case 'event':
-                return <Calendar className="h-4 w-4 text-neon-blue" />;
-            case 'registration':
-                return <Zap className="h-4 w-4 text-neon-green" />;
-            case 'social':
-                return <Share2 className="h-4 w-4 text-neon-purple" />;
+                return <Calendar className="h-4 w-4" />;
             case 'contribution':
-                return <Trophy className="h-4 w-4 text-neon-pink" />;
+                return <Users className="h-4 w-4" />;
+            case 'social':
+                return <Share2 className="h-4 w-4" />;
+            case 'registration':
+                return <Award className="h-4 w-4" />;
             default:
-                return <Zap className="h-4 w-4 text-neon-blue" />;
+                return <Zap className="h-4 w-4" />;
+        }
+    };
+
+    // Get the category color
+    const getCategoryColor = (category: string) => {
+        switch (category) {
+            case 'event':
+                return 'bg-blue-500/10 text-blue-500';
+            case 'contribution':
+                return 'bg-purple-500/10 text-purple-500';
+            case 'social':
+                return 'bg-green-500/10 text-green-500';
+            case 'registration':
+                return 'bg-amber-500/10 text-amber-500';
+            default:
+                return 'bg-gray-500/10 text-gray-500';
         }
     };
 
     return (
-        <div className="space-y-3">
-            {activities.map((activity, index) => (
-                <motion.div
-                    key={activity.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/30"
-                >
-                    <div className="flex items-center">
-                        <div className="mr-3 p-2 rounded-full bg-background">
-                            {getActivityIcon(activity.category)}
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium">{activity.description}</p>
-                            <p className="text-xs text-muted-foreground">
-                                {new Date(activity.createdAt).toLocaleDateString(undefined, {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                })}
-                            </p>
-                        </div>
+        <div className="space-y-4">
+            {activities.map((activity) => (
+                <div key={activity.id} className="flex items-start gap-4 p-3 rounded-lg bg-background/50 border border-border/30 hover:bg-background/80 transition-colors">
+                    <div className={`flex-shrink-0 rounded-full p-2 ${getCategoryColor(activity.category)}`}>
+                        {getCategoryIcon(activity.category)}
                     </div>
-                    <div className="flex items-center text-neon-blue font-medium">
-                        +{activity.points} <Zap className="h-3 w-3 ml-1" />
+                    <div className="flex-1 min-w-0">
+                        <p className="font-medium">{activity.description}</p>
+                        <p className="text-sm text-muted-foreground">
+                            {new Date(activity.createdAt).toLocaleDateString()} · {activity.category}
+                        </p>
                     </div>
-                </motion.div>
+                    <div className="flex-shrink-0 font-semibold text-right">
+                        +{activity.points} <span className="text-sm text-muted-foreground">pts</span>
+                    </div>
+                </div>
             ))}
         </div>
     );

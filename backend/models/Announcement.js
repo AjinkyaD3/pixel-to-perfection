@@ -28,11 +28,7 @@ const announcementSchema = new mongoose.Schema({
       return this.targetAudience === 'specific_year';
     }
   },
-  attachments: [{
-    name: String,
-    url: String,
-    type: String
-  }],
+  attachments: [String],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

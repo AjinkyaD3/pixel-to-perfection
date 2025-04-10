@@ -88,6 +88,27 @@ const userSchema = new mongoose.Schema({
   profilePicture: {
     type: String,
   },
+  // Leaderboard related fields
+  points: {
+    type: Number,
+    default: 0
+  },
+  eventAttendance: {
+    type: Number,
+    default: 0
+  },
+  socialShares: {
+    type: Number,
+    default: 0
+  },
+  contributions: {
+    type: Number,
+    default: 0
+  },
+  earlyRegistrations: {
+    type: Number,
+    default: 0
+  },
   createdAt: {
     type: Date,
     default: Date.now,

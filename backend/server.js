@@ -16,6 +16,8 @@ const eventRoutes = require('./routes/events');
 const budgetRoutes = require('./routes/budgets');
 const announcementRoutes = require('./routes/announcements');
 const memberRoutes = require('./routes/members');
+const leaderboardRoutes = require('./routes/leaderboard');
+const uploadRoutes = require('./routes/uploads');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -69,6 +71,9 @@ app.use(cookieParser());
 app.use(morgan('dev'));
 app.use(generalLimiter);
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('New client connected');
@@ -85,6 +90,8 @@ app.use('/api/events', eventRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/members', memberRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 // Error handling
 app.use(errorHandler);

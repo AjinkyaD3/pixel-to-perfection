@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,12 +20,15 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
-import { Plus, Edit, Trash2, DollarSign, Calendar, Users, Image as ImageIcon, FileText, ExternalLink, Star, Share2, Award, ChevronRight, Trophy, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, DollarSign, Calendar, Users, Image as ImageIcon, FileText, ExternalLink, Star, Share2, Award, ChevronRight, Trophy, Clock, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import PointsActivity from '@/components/PointsActivity';
 import { PointsActivity as PointsActivityType } from '@/types';
+import { toast } from '@/components/ui/use-toast';
+import { authService, eventService, budgetService, leaderboardService } from '@/lib/api';
+import Announcements from '@/components/Announcements';
 
 interface GalleryImage {
     id: number;
@@ -67,6 +70,10 @@ interface Event {
 const MemberDashboard = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('events');
+    const [loading, setLoading] = useState(true);
+    const [userData, setUserData] = useState<any>(null);
+    const [userRanking, setUserRanking] = useState<any>(null);
+    const [recentActivities, setRecentActivities] = useState<PointsActivityType[]>([]);
 
     const [events, setEvents] = useState<Event[]>([
         {
@@ -125,7 +132,7 @@ const MemberDashboard = () => {
     });
 
     // Mock data for recent activities
-    const recentActivities: PointsActivityType[] = [
+    const recentActivitiesMock: PointsActivityType[] = [
         {
             id: '1',
             userId: 'user1',
@@ -168,37 +175,189 @@ const MemberDashboard = () => {
         }
     ];
 
-    // Event handlers
-    const handleAddEvent = () => {
-        const event: Event = {
-            ...newEvent,
-            id: events.length + 1
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                
+                // Get user profile data
+                const userResponse = await authService.getMe();
+                setUserData(userResponse.data);
+
+                // Get user ranking and badge information
+                try {
+                    const rankingResponse = await leaderboardService.getMyRanking();
+                    setUserRanking(rankingResponse.data);
+                } catch (err) {
+                    console.error('Error fetching ranking:', err);
+                    // If there's an error, we'll just continue without ranking data
+                }
+
+                // Get events data
+                try {
+                    const eventsResponse = await eventService.getEvents({});
+                    if (eventsResponse.data) {
+                        setEvents(eventsResponse.data.map((event: any, index: number) => ({
+                            id: event._id || index + 1,
+                            title: event.title,
+                            date: event.date,
+                            description: event.description,
+                            budget: event.budget || 0,
+                            attendees: event.attendees?.length || 0,
+                            image: event.posterUrl || "",
+                            status: event.status || 'open',
+                            location: event.venue || "",
+                            registrationLink: event.registrationLink || "",
+                            expenses: event.expenses || []
+                        })));
+                    }
+                } catch (err) {
+                    console.error('Error fetching events:', err);
+                }
+                
+                // Get budget data
+                try {
+                    const budgetResponse = await budgetService.getBudgets({});
+                    if (budgetResponse.data) {
+                        setBudgetEntries(budgetResponse.data.map((entry: any, index: number) => ({
+                            id: entry._id || index + 1,
+                            category: entry.category,
+                            amount: entry.amount,
+                            type: entry.type || 'expense',
+                            description: entry.description,
+                            date: entry.date || new Date().toISOString(),
+                            addedBy: entry.addedBy || userData?.name || ""
+                        })));
+                    }
+                } catch (err) {
+                    console.error('Error fetching budget entries:', err);
+                }
+
+                // Set activity data - in a real implementation, this would come from an API endpoint
+                // For now, we're generating sample data based on the user ID
+                if (userResponse.data) {
+                    setRecentActivities(recentActivitiesMock);
+                }
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                toast({
+                    title: "Error",
+                    description: "Failed to load dashboard data",
+                    variant: "destructive"
+                });
+            } finally {
+                setLoading(false);
+            }
         };
-        setEvents([...events, event]);
-        setNewEvent({
-            title: '',
-            date: '',
-            description: '',
-            budget: 0,
-            attendees: 0,
-            image: '',
-            status: 'open',
-            location: '',
-            registrationLink: '',
-            expenses: []
-        });
-        setIsEventDialogOpen(false);
+
+        fetchData();
+    }, []);
+
+    // Event handlers
+    const handleAddEvent = async () => {
+        try {
+            const eventData = {
+                title: newEvent.title,
+                type: "Workshop",
+                description: newEvent.description,
+                date: newEvent.date,
+                time: "09:00",
+                venue: newEvent.location,
+                maxCapacity: 100,
+                speaker: { name: "Speaker", bio: "" }
+            };
+            
+            const response = await eventService.createEvent(eventData);
+            
+            const event: Event = {
+                ...newEvent,
+                id: response.data._id || events.length + 1
+            };
+            
+            setEvents([...events, event]);
+            setNewEvent({
+                title: '',
+                date: '',
+                description: '',
+                budget: 0,
+                attendees: 0,
+                image: '',
+                status: 'open',
+                location: '',
+                registrationLink: '',
+                expenses: []
+            });
+            
+            toast({
+                title: "Success",
+                description: "Event created successfully",
+            });
+            
+            setIsEventDialogOpen(false);
+        } catch (error) {
+            console.error('Error creating event:', error);
+            toast({
+                title: "Error",
+                description: "Failed to create event",
+                variant: "destructive",
+            });
+        }
     };
 
-    const handleEditEvent = () => {
+    const handleEditEvent = async () => {
         if (!editingEvent) return;
-        setEvents(events.map(e => e.id === editingEvent.id ? editingEvent : e));
-        setEditingEvent(null);
-        setIsEventDialogOpen(false);
+        
+        try {
+            const eventData = {
+                title: editingEvent.title,
+                type: "Workshop",
+                description: editingEvent.description,
+                date: editingEvent.date,
+                time: "09:00",
+                venue: editingEvent.location,
+                maxCapacity: 100,
+                speaker: { name: "Speaker", bio: "" }
+            };
+            
+            await eventService.updateEvent(editingEvent.id.toString(), eventData);
+            
+            setEvents(events.map(e => e.id === editingEvent.id ? editingEvent : e));
+            
+            toast({
+                title: "Success",
+                description: "Event updated successfully",
+            });
+            
+            setEditingEvent(null);
+            setIsEventDialogOpen(false);
+        } catch (error) {
+            console.error('Error updating event:', error);
+            toast({
+                title: "Error",
+                description: "Failed to update event",
+                variant: "destructive",
+            });
+        }
     };
 
-    const handleDeleteEvent = (id: number) => {
-        setEvents(events.filter(e => e.id !== id));
+    const handleDeleteEvent = async (id: number) => {
+        try {
+            await eventService.deleteEvent(id.toString());
+            // Then update UI
+            setEvents(events.filter(event => event.id !== id));
+            toast({
+                title: "Success",
+                description: "Event deleted successfully",
+            });
+        } catch (error) {
+            console.error('Error deleting event:', error);
+            toast({
+                title: "Error",
+                description: "Failed to delete event",
+                variant: "destructive",
+            });
+        }
     };
 
     const handleToggleEventStatus = (eventId: number) => {
@@ -228,24 +387,65 @@ const MemberDashboard = () => {
         setGalleryImages(galleryImages.filter(img => img.id !== id));
     };
 
-    const handleAddBudgetEntry = () => {
-        const entry: BudgetEntry = {
-            ...newBudgetEntry,
-            id: budgetEntries.length + 1
-        };
-        setBudgetEntries([...budgetEntries, entry]);
-        setNewBudgetEntry({
-            category: '',
-            amount: 0,
-            type: 'expense',
-            description: '',
-            date: new Date().toISOString(),
-            addedBy: ''
-        });
+    const handleAddBudgetEntry = async () => {
+        try {
+            const budgetData = {
+                category: newBudgetEntry.category,
+                amount: newBudgetEntry.amount,
+                type: newBudgetEntry.type,
+                description: newBudgetEntry.description,
+                date: newBudgetEntry.date
+            };
+            
+            const response = await budgetService.createBudgetEntry(budgetData);
+            
+            const entry: BudgetEntry = {
+                ...newBudgetEntry,
+                id: response.data._id || budgetEntries.length + 1
+            };
+            
+            setBudgetEntries([...budgetEntries, entry]);
+            
+            toast({
+                title: "Success",
+                description: "Budget entry created successfully",
+            });
+            
+            setNewBudgetEntry({
+                category: '',
+                amount: 0,
+                type: 'expense',
+                description: '',
+                date: new Date().toISOString(),
+                addedBy: ''
+            });
+        } catch (error) {
+            console.error('Error creating budget entry:', error);
+            toast({
+                title: "Error",
+                description: "Failed to create budget entry",
+                variant: "destructive",
+            });
+        }
     };
 
-    const handleDeleteBudgetEntry = (id: number) => {
-        setBudgetEntries(budgetEntries.filter(entry => entry.id !== id));
+    const handleDeleteBudgetEntry = async (id: number) => {
+        try {
+            await budgetService.deleteBudgetEntry(id.toString());
+            // Then update UI
+            setBudgetEntries(budgetEntries.filter(entry => entry.id !== id));
+            toast({
+                title: "Success",
+                description: "Budget entry deleted successfully",
+            });
+        } catch (error) {
+            console.error('Error deleting budget entry:', error);
+            toast({
+                title: "Error",
+                description: "Failed to delete budget entry",
+                variant: "destructive",
+            });
+        }
     };
 
     // Statistics
@@ -264,12 +464,24 @@ const MemberDashboard = () => {
 
     const currentBalance = totalIncome - totalExpenses;
 
+    // Loading state
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-primary" />
+                    <p className="text-lg font-medium">Loading dashboard data...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-background p-8">
             <div className="max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-foreground">Member Dashboard</h1>
+                        <h1 className="text-3xl font-bold text-foreground">Hello, {userData?.name || 'Member'}</h1>
                         <p className="text-muted-foreground mt-1">View upcoming events and track your engagement</p>
                     </div>
                     <Button
@@ -294,7 +506,7 @@ const MemberDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-muted-foreground">Total Points</p>
-                                <p className="text-2xl font-bold text-foreground">650</p>
+                                <p className="text-2xl font-bold text-foreground">{userData?.points || 0}</p>
                             </div>
                         </div>
                     </motion.div>
@@ -311,7 +523,7 @@ const MemberDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-muted-foreground">Events Attended</p>
-                                <p className="text-2xl font-bold text-foreground">12</p>
+                                <p className="text-2xl font-bold text-foreground">{userData?.eventAttendance || 0}</p>
                             </div>
                         </div>
                     </motion.div>
@@ -328,7 +540,7 @@ const MemberDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-muted-foreground">Social Shares</p>
-                                <p className="text-2xl font-bold text-foreground">30</p>
+                                <p className="text-2xl font-bold text-foreground">{userData?.socialShares || 0}</p>
                             </div>
                         </div>
                     </motion.div>
@@ -345,7 +557,7 @@ const MemberDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-muted-foreground">Badges Earned</p>
-                                <p className="text-2xl font-bold text-foreground">2</p>
+                                <p className="text-2xl font-bold text-foreground">{userRanking?.badges?.length || 0}</p>
                             </div>
                         </div>
                     </motion.div>
@@ -361,37 +573,33 @@ const MemberDashboard = () => {
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        <div className="flex flex-col items-center">
-                            <div className="rounded-full p-5 bg-gradient-to-br from-blue-400 to-indigo-500 shadow-lg mb-2">
-                                <Award className="h-8 w-8 text-white" />
+                        {userRanking?.badges?.length > 0 ? (
+                            // Display actual badges from userRanking
+                            userRanking.badges.map((badge: any) => (
+                                <div key={badge.id} className="flex flex-col items-center">
+                                    <div className={`rounded-full p-5 bg-gradient-to-br ${
+                                        badge.color === 'gold' ? 'from-amber-300 to-yellow-500' :
+                                        badge.color === 'blue' ? 'from-blue-400 to-indigo-500' :
+                                        badge.color === 'purple' ? 'from-purple-400 to-fuchsia-500' :
+                                        badge.color === 'green' ? 'from-emerald-400 to-green-500' :
+                                        'from-orange-300 to-amber-500'
+                                    } shadow-lg mb-2`}>
+                                        {badge.icon === 'trophy' ? <Trophy className="h-8 w-8 text-white" /> :
+                                         badge.icon === 'share' ? <Share2 className="h-8 w-8 text-white" /> :
+                                         badge.icon === 'clock' ? <Clock className="h-8 w-8 text-white" /> :
+                                         badge.icon === 'star' ? <Star className="h-8 w-8 text-white" /> :
+                                         <Award className="h-8 w-8 text-white" />}
+                                    </div>
+                                    <p className="font-medium text-center">{badge.name}</p>
+                                    <p className="text-xs text-muted-foreground text-center">{badge.description}</p>
+                                </div>
+                            ))
+                        ) : (
+                            // Display a message if no badges
+                            <div className="col-span-4 text-center py-4 text-muted-foreground">
+                                You haven't earned any badges yet. Participate in events to earn badges!
                             </div>
-                            <p className="font-medium text-center">Active Learner</p>
-                            <p className="text-xs text-muted-foreground text-center">Attended 10+ workshops</p>
-                        </div>
-
-                        <div className="flex flex-col items-center">
-                            <div className="rounded-full p-5 bg-gradient-to-br from-purple-400 to-fuchsia-500 shadow-lg mb-2">
-                                <Share2 className="h-8 w-8 text-white" />
-                            </div>
-                            <p className="font-medium text-center">Social Butterfly</p>
-                            <p className="text-xs text-muted-foreground text-center">Shared 20+ events</p>
-                        </div>
-
-                        <div className="flex flex-col items-center opacity-40">
-                            <div className="rounded-full p-5 bg-gradient-to-br from-gray-400 to-gray-500 shadow-lg mb-2">
-                                <Trophy className="h-8 w-8 text-white" />
-                            </div>
-                            <p className="font-medium text-center">Top Volunteer</p>
-                            <p className="text-xs text-muted-foreground text-center">Locked (500 points)</p>
-                        </div>
-
-                        <div className="flex flex-col items-center opacity-40">
-                            <div className="rounded-full p-5 bg-gradient-to-br from-gray-400 to-gray-500 shadow-lg mb-2">
-                                <Clock className="h-8 w-8 text-white" />
-                            </div>
-                            <p className="font-medium text-center">Early Bird</p>
-                            <p className="text-xs text-muted-foreground text-center">Locked (8+ early registrations)</p>
-                        </div>
+                        )}
                     </div>
                 </div>
 
@@ -402,6 +610,7 @@ const MemberDashboard = () => {
                         <TabsTrigger value="gallery">Gallery</TabsTrigger>
                         <TabsTrigger value="budget">Budget</TabsTrigger>
                         <TabsTrigger value="activity">Activity</TabsTrigger>
+                        <TabsTrigger value="announcements">Announcements</TabsTrigger>
                     </TabsList>
 
                     {/* Events Tab */}
@@ -866,6 +1075,10 @@ const MemberDashboard = () => {
                                 </div>
                             </CardContent>
                         </Card>
+                    </TabsContent>
+
+                    <TabsContent value="announcements">
+                        <Announcements isAdmin={false} limit={5} showForm={false} />
                     </TabsContent>
                 </Tabs>
             </div>

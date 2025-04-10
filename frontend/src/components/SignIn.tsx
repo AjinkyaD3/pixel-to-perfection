@@ -10,9 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { authService } from '@/lib/api';
 
-// Set to true during development to bypass actual API calls
-const DEBUG_MODE = false;
-
 const SignIn: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,62 +24,8 @@ const SignIn: React.FC = () => {
     setLoading(true);
 
     try {
-      let data;
-
-      if (DEBUG_MODE) {
-        // Mock response for debugging/development
-        console.log('DEBUG MODE: Using mock login data');
-        
-        // Return different mock data based on email for testing different roles
-        if (email.includes('admin')) {
-          data = {
-            token: 'mock-token-admin',
-            user: { 
-              _id: '1', 
-              name: 'Admin User', 
-              email: email, 
-              role: 'admin' 
-            }
-          };
-        } else if (email.includes('member')) {
-          data = {
-            token: 'mock-token-member',
-            user: { 
-              _id: '2', 
-              name: 'Member User', 
-              email: email, 
-              role: 'member' 
-            }
-          };
-        } else if (email.includes('student')) {
-          data = {
-            token: 'mock-token-student',
-            user: { 
-              _id: '3', 
-              name: 'Student User', 
-              email: email, 
-              role: 'student' 
-            }
-          };
-        } else {
-          data = {
-            token: 'mock-token-user',
-            user: { 
-              _id: '4', 
-              name: 'Regular User', 
-              email: email, 
-              role: 'student' // Default to student role
-            }
-          };
-        }
-        
-        // Store mock data in localStorage
-        localStorage.setItem('pixel_to_perfection_token', data.token);
-        localStorage.setItem('pixel_to_perfection_user', JSON.stringify(data.user));
-      } else {
-        // Make actual API call
-        data = await authService.login(email, password);
-      }
+      // Make actual API call to backend
+      const data = await authService.login(email, password);
       
       toast({
         title: 'Success',

@@ -5,7 +5,7 @@ const router = express.Router();
 const authRoutes = require('./auth');
 const studentRoutes = require('./students');
 const eventRoutes = require('./events');
-const budgetRoutes = require('./budget');
+const budgetRoutes = require('./budgets');
 const memberRoutes = require('./members');
 const galleryRoutes = require('./gallery');
 

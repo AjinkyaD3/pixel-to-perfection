@@ -8,9 +8,6 @@ import { User, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { authService } from '@/lib/api';
 
-// Set to true during development to bypass actual API calls
-const DEBUG_MODE = false;
-
 const MemberLogin = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
@@ -32,36 +29,12 @@ const MemberLogin = () => {
         setLoading(true);
         
         try {
-            let data;
-
-            if (DEBUG_MODE) {
-                // Mock response for debugging/development if using test credentials
-                if (formData.email === 'member@example.com' && formData.password === 'member123') {
-                    console.log('DEBUG MODE: Using mock member login data');
-                    data = {
-                        token: 'mock-token-member',
-                        user: { 
-                            _id: '2', 
-                            name: 'Member User', 
-                            email: formData.email, 
-                            role: 'member' 
-                        }
-                    };
-                    
-                    // Store mock data in localStorage
-                    localStorage.setItem('pixel_to_perfection_token', data.token);
-                    localStorage.setItem('pixel_to_perfection_user', JSON.stringify(data.user));
-                } else {
-                    throw new Error('Invalid credentials');
-                }
-            } else {
-                // Make actual API call
-                data = await authService.login(formData.email, formData.password);
-                
-                // Verify that the user is a member
-                if (data.user.role !== 'member') {
-                    throw new Error('Access denied. Member account required.');
-                }
+            // Make actual API call
+            const data = await authService.login(formData.email, formData.password);
+            
+            // Verify that the user is a member
+            if (data.user.role !== 'member' && data.user.role !== 'committee') {
+                throw new Error('Access denied. Member account required.');
             }
             
             toast({

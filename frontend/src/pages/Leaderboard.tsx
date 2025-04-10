@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -6,121 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Trophy, Medal, Award, Star, Share2, Calendar, Zap } from 'lucide-react';
-import { LeaderboardEntry, Badge as BadgeType } from '@/types';
+import { Trophy, Medal, Award, Star, Share2, Calendar, Zap, Loader2 } from 'lucide-react';
 import ThreeDBackground from '@/components/ThreeDBackground';
-
-// Sample data
-const mockBadges: BadgeType[] = [
-    {
-        id: '1',
-        name: 'Top Volunteer',
-        description: 'Contributed to organizing 5+ events',
-        icon: 'trophy',
-        color: 'gold',
-        requiredPoints: 500
-    },
-    {
-        id: '2',
-        name: 'Active Learner',
-        description: 'Attended 10+ technical workshops',
-        icon: 'book',
-        color: 'blue',
-        requiredPoints: 300
-    },
-    {
-        id: '3',
-        name: 'Social Butterfly',
-        description: 'Shared 20+ events on social media',
-        icon: 'share',
-        color: 'purple',
-        requiredPoints: 200
-    },
-    {
-        id: '4',
-        name: 'Early Bird',
-        description: 'Registered early for 8+ events',
-        icon: 'clock',
-        color: 'green',
-        requiredPoints: 160
-    },
-    {
-        id: '5',
-        name: 'Rising Star',
-        description: 'Earned 100+ points in a month',
-        icon: 'star',
-        color: 'orange',
-        requiredPoints: 100
-    }
-];
-
-const mockLeaderboard: LeaderboardEntry[] = [
-    {
-        id: '1',
-        userId: 'user1',
-        name: 'Alex Johnson',
-        avatar: '/avatars/alex.jpg',
-        points: 780,
-        rank: 1,
-        badges: [mockBadges[0], mockBadges[1], mockBadges[2]],
-        eventsAttended: 15,
-        earlyRegistrations: 12,
-        socialShares: 25,
-        contributions: 8
-    },
-    {
-        id: '2',
-        userId: 'user2',
-        name: 'Maya Patel',
-        avatar: '/avatars/maya.jpg',
-        points: 650,
-        rank: 2,
-        badges: [mockBadges[1], mockBadges[2]],
-        eventsAttended: 12,
-        earlyRegistrations: 10,
-        socialShares: 30,
-        contributions: 5
-    },
-    {
-        id: '3',
-        userId: 'user3',
-        name: 'Zain Ahmed',
-        avatar: '/avatars/zain.jpg',
-        points: 520,
-        rank: 3,
-        badges: [mockBadges[0], mockBadges[4]],
-        eventsAttended: 10,
-        earlyRegistrations: 8,
-        socialShares: 15,
-        contributions: 7
-    },
-    {
-        id: '4',
-        userId: 'user4',
-        name: 'Sofia Rodriguez',
-        avatar: '/avatars/sofia.jpg',
-        points: 480,
-        rank: 4,
-        badges: [mockBadges[2], mockBadges[3]],
-        eventsAttended: 8,
-        earlyRegistrations: 8,
-        socialShares: 22,
-        contributions: 4
-    },
-    {
-        id: '5',
-        userId: 'user5',
-        name: 'Jamal Wilson',
-        avatar: '/avatars/jamal.jpg',
-        points: 420,
-        rank: 5,
-        badges: [mockBadges[3], mockBadges[4]],
-        eventsAttended: 9,
-        earlyRegistrations: 7,
-        socialShares: 18,
-        contributions: 3
-    }
-];
+import { leaderboardService } from '@/lib/api';
+import { useToast } from '@/components/ui/use-toast';
+import type { LeaderboardEntry, Badge as BadgeType } from '@/types';
 
 // Badge Icon component
 const BadgeIcon: React.FC<{ badge: BadgeType, size?: 'sm' | 'md' | 'lg' }> = ({ badge, size = 'md' }) => {
@@ -172,6 +62,53 @@ const BadgeIcon: React.FC<{ badge: BadgeType, size?: 'sm' | 'md' | 'lg' }> = ({ 
 
 const LeaderboardPage: React.FC = () => {
     const [view, setView] = useState<'leaderboard' | 'badges'>('leaderboard');
+    const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+    const [badges, setBadges] = useState<BadgeType[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const fetchLeaderboardData = async () => {
+            try {
+                setLoading(true);
+                
+                // Fetch leaderboard data from API
+                const leaderboardResponse = await leaderboardService.getLeaderboard({ limit: 10 });
+                setLeaderboard(leaderboardResponse.data);
+                
+                // Fetch badges from API
+                const badgesResponse = await leaderboardService.getBadges();
+                setBadges(badgesResponse.data);
+                
+            } catch (error) {
+                console.error('Error fetching leaderboard data:', error);
+                toast({
+                    title: 'Error',
+                    description: 'Failed to load leaderboard data',
+                    variant: 'destructive'
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchLeaderboardData();
+    }, [toast]);
+
+    if (loading) {
+        return (
+            <div className="relative min-h-screen">
+                <ThreeDBackground />
+                <Navbar />
+                <div className="relative z-10 container mx-auto py-24 flex justify-center items-center">
+                    <div className="text-center">
+                        <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4" />
+                        <p className="text-xl font-medium">Loading leaderboard data...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="relative min-h-screen ">
@@ -197,7 +134,7 @@ const LeaderboardPage: React.FC = () => {
                     <TabsContent value="leaderboard" className="space-y-8">
                         {/* Top Contributors */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            {mockLeaderboard.slice(0, 3).map((entry, index) => (
+                            {leaderboard.slice(0, 3).map((entry, index) => (
                                 <motion.div
                                     key={entry.id}
                                     initial={{ opacity: 0, y: 20 }}
@@ -277,72 +214,54 @@ const LeaderboardPage: React.FC = () => {
                             ))}
                         </div>
 
-                        {/* Full Leaderboard */}
-                        <div className="bg-background/80 backdrop-blur-xl rounded-xl p-6 border border-border/50">
-                            <h2 className="text-2xl font-bold mb-6">All Participants</h2>
-                            <div className="space-y-4">
-                                {mockLeaderboard.map((entry) => (
-                                    <motion.div
-                                        key={entry.id}
-                                        initial={{ opacity: 0, x: -20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: entry.rank * 0.05 }}
-                                        whileHover={{ scale: 1.01 }}
-                                        className={`flex items-center justify-between p-4 rounded-lg ${entry.rank <= 3
-                                            ? 'bg-gradient-to-r from-background/40 to-background/70 border border-border/30'
-                                            : 'bg-background/40 border border-border/20'} 
-                                            hover:bg-background/50 transition-all`}
-                                    >
-                                        <div className="flex items-center">
-                                            <div className={`w-8 h-8 flex items-center justify-center font-bold text-lg mr-4 rounded-full
-                                                ${entry.rank === 1 ? 'bg-yellow-500/20 text-yellow-500' :
-                                                    entry.rank === 2 ? 'bg-gray-400/20 text-gray-400' :
-                                                        entry.rank === 3 ? 'bg-amber-700/20 text-amber-700' :
-                                                            'bg-slate-700/20 text-slate-400'}`}>
-                                                {entry.rank}
-                                            </div>
-                                            <Avatar className="h-10 w-10 mr-4 border-2 border-slate-800">
-                                                <AvatarImage src={entry.avatar} />
-                                                <AvatarFallback>{entry.name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                                <h3 className="font-medium">{entry.name}</h3>
-                                                <div className="flex space-x-3 text-xs text-muted-foreground mt-1">
-                                                    <span className="flex items-center"><Calendar className="h-3 w-3 mr-1" /> {entry.eventsAttended}</span>
-                                                    <span className="flex items-center"><Share2 className="h-3 w-3 mr-1" /> {entry.socialShares}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center">
-                                            <div className="flex -space-x-1 mr-4">
-                                                {entry.badges.slice(0, 3).map((badge) => (
-                                                    <div key={badge.id} className="inline-block h-7 w-7 rounded-full">
-                                                        <BadgeIcon badge={badge} size="sm" />
-                                                    </div>
-                                                ))}
-                                                {entry.badges.length > 3 && (
-                                                    <div className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-slate-800 text-xs font-medium text-white">
-                                                        +{entry.badges.length - 3}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className={`font-bold px-3 py-1 rounded-full ${entry.rank === 1 ? 'bg-yellow-500/20 text-yellow-500' :
-                                                entry.rank === 2 ? 'bg-gray-400/20 text-gray-400' :
-                                                    entry.rank === 3 ? 'bg-amber-700/20 text-amber-700' :
-                                                        'bg-blue-500/20 text-blue-500'
-                                                }`}>
-                                                {entry.points} pts
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </div>
+                        {/* Rest of Leaderboard */}
+                        <Card className="backdrop-blur-sm bg-background/60 border-border/50">
+                            <CardHeader>
+                                <CardTitle>Leaderboard Standings</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b border-border/30">
+                                                <th className="px-4 py-3 text-left">Rank</th>
+                                                <th className="px-4 py-3 text-left">Member</th>
+                                                <th className="px-4 py-3 text-left">Badges</th>
+                                                <th className="px-4 py-3 text-right">Points</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {leaderboard.map((entry) => (
+                                                <tr key={entry.id} className="border-b border-border/30">
+                                                    <td className="px-4 py-3">{entry.rank}</td>
+                                                    <td className="px-4 py-3">{entry.name}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex -space-x-1">
+                                                            {entry.badges.slice(0, 3).map((badge) => (
+                                                                <div key={badge.id} className="inline-block h-7 w-7 rounded-full">
+                                                                    <BadgeIcon badge={badge} size="sm" />
+                                                                </div>
+                                                            ))}
+                                                            {entry.badges.length > 3 && (
+                                                                <div className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-slate-800 text-xs font-medium text-white">
+                                                                    +{entry.badges.length - 3}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">{entry.points} pts</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
                     </TabsContent>
 
                     <TabsContent value="badges" className="space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {mockBadges.map((badge, index) => (
+                            {badges.map((badge, index) => (
                                 <motion.div
                                     key={badge.id}
                                     initial={{ opacity: 0, y: 20 }}

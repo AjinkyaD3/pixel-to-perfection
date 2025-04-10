@@ -25,7 +25,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { eventService, memberService, budgetService, galleryService } from '@/lib/api';
+import { eventService, memberService, budgetService, galleryService, uploadService } from '@/lib/api';
+import Announcements from '@/components/Announcements';
+
+// Utility function to properly handle image URLs
+const getImageUrl = (imagePath: string, defaultPath = '/placeholder-image.jpg') => {
+  if (!imagePath) return defaultPath;
+  
+  // If already absolute URL, just fix double slashes (preserve http:// or https://)
+  if (imagePath.startsWith('http')) {
+    return imagePath.replace(/([^:])\/+/g, '$1/');
+  }
+  
+  // If relative path, ensure it starts with a slash
+  const relativePath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+  
+  // Join with base URL and fix any double slashes
+  return `${import.meta.env.VITE_API_URL.replace('/api', '')}${relativePath}`.replace(/([^:])\/+/g, '$1/');
+};
 
 interface GalleryImage {
   id: number;
@@ -95,6 +112,48 @@ interface Event {
     description: string;
   }[];
 }
+
+// Event image component
+const EventImage = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+  const [imgSrc, setImgSrc] = useState(src);
+  
+  return (
+    <img
+      src={imgSrc}
+      alt={alt}
+      className={className}
+      onError={() => setImgSrc('/placeholder-image.jpg')}
+    />
+  );
+};
+
+// Member image component
+const MemberImage = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+  const [imgSrc, setImgSrc] = useState(src);
+  
+  return (
+    <img
+      src={imgSrc}
+      alt={alt}
+      className={className}
+      onError={() => setImgSrc('/placeholder-image.jpg')}
+    />
+  );
+};
+
+// Gallery image component
+const GalleryImage = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+  const [imgSrc, setImgSrc] = useState(src);
+  
+  return (
+    <img
+      src={imgSrc}
+      alt={alt}
+      className={className}
+      onError={() => setImgSrc('/placeholder-image.jpg')}
+    />
+  );
+};
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -189,6 +248,8 @@ const AdminDashboard = () => {
     addedBy: ''
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [eventImageFile, setEventImageFile] = useState<File | null>(null);
+  const [memberImageFile, setMemberImageFile] = useState<File | null>(null);
   const [isGalleryDialogOpen, setIsGalleryDialogOpen] = useState(false);
 
   // Fetch events when component mounts
@@ -280,6 +341,31 @@ const AdminDashboard = () => {
           _id: '6529d9bb9a5b4f5b63e5f376'  // Fallback admin ID
         };
       
+      // Upload event image if provided
+      let posterUrl = newEvent.image || 'default-poster.png';
+      
+      if (eventImageFile) {
+        try {
+          const uploadResponse = await uploadService.uploadEventImage(eventImageFile);
+          if (uploadResponse.success && uploadResponse.file) {
+            // Ensure the URL includes the complete server path
+            posterUrl = uploadResponse.file.url;
+            // Check if URL is relative and prepend base URL if needed
+            if (posterUrl && !posterUrl.startsWith('http')) {
+              posterUrl = `${import.meta.env.VITE_API_URL.replace('/api', '')}${posterUrl}`;
+            }
+            console.log("Image uploaded successfully:", posterUrl);
+          }
+        } catch (uploadError) {
+          console.error("Error uploading event image:", uploadError);
+          toast({
+            title: 'Warning',
+            description: 'Failed to upload event image. Using default or URL instead.',
+            variant: 'destructive',
+          });
+        }
+      }
+      
       // Create event data exactly matching backend model requirements
       const backendEvent = {
         title: newEvent.title,
@@ -295,7 +381,7 @@ const AdminDashboard = () => {
           name: currentUser.name || 'Guest Speaker',
           organization: 'University'
         },
-        posterUrl: newEvent.image || 'default-poster.png',
+        posterUrl: posterUrl,
         isActive: true
       };
       
@@ -315,7 +401,7 @@ const AdminDashboard = () => {
           description: createdEvent.description || backendEvent.description,
           budget: newEvent.budget || 0,
           attendees: createdEvent.maxCapacity || backendEvent.maxCapacity,
-          image: createdEvent.posterUrl || backendEvent.posterUrl || '',
+          image: createdEvent.posterUrl || posterUrl || '',
           status: createdEvent.status === 'upcoming' ? 'open' : 'closed',
           location: createdEvent.venue || backendEvent.venue,
           registrationLink: newEvent.registrationLink || '',
@@ -362,6 +448,7 @@ const AdminDashboard = () => {
         registrationLink: '',
         expenses: []
       });
+      setEventImageFile(null);
       setIsEventDialogOpen(false);
     } catch (error) {
       console.error('Error adding event:', error);
@@ -381,17 +468,52 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, events: true }));
       
+      // Upload event image if provided
+      let posterUrl = editingEvent.image || 'default-poster.png';
+      
+      if (eventImageFile) {
+        try {
+          const uploadResponse = await uploadService.uploadEventImage(eventImageFile);
+          if (uploadResponse.success && uploadResponse.file) {
+            // Ensure the URL includes the complete server path
+            posterUrl = uploadResponse.file.url;
+            // Check if URL is relative and prepend base URL if needed
+            if (posterUrl && !posterUrl.startsWith('http')) {
+              posterUrl = `${import.meta.env.VITE_API_URL.replace('/api', '')}${posterUrl}`;
+            }
+            console.log("Image uploaded successfully:", posterUrl);
+          }
+        } catch (uploadError) {
+          console.error("Error uploading event image:", uploadError);
+          toast({
+            title: 'Warning',
+            description: 'Failed to upload event image. Using existing or URL instead.',
+            variant: 'destructive',
+          });
+        }
+      }
+      
+      // Update event with new image URL if it was uploaded
+      const updatedEvent = {
+        ...editingEvent,
+        image: posterUrl
+      };
+      
       // Try to update event via API
       try {
-        await eventService.updateEvent(editingEvent.id.toString(), editingEvent);
-        console.log("Event updated:", editingEvent);
+        await eventService.updateEvent(editingEvent.id.toString(), {
+          ...editingEvent,
+          posterUrl: posterUrl
+        });
+        console.log("Event updated:", updatedEvent);
       } catch (apiError) {
         console.error("API error when updating event:", apiError);
       }
       
       // Update local state regardless of API success
-      setEvents(prev => prev.map(e => e.id === editingEvent.id ? editingEvent : e));
+      setEvents(prev => prev.map(e => e.id === editingEvent.id ? updatedEvent : e));
       setEditingEvent(null);
+      setEventImageFile(null);
       setIsEventDialogOpen(false);
       toast({
         title: 'Success',
@@ -497,13 +619,38 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, members: true }));
       
+      // Upload member profile image if provided
+      let profileImageUrl = newCommitteeMember.image || 'default-avatar.png';
+      
+      if (memberImageFile) {
+        try {
+          const uploadResponse = await uploadService.uploadProfileImage(memberImageFile);
+          if (uploadResponse.success && uploadResponse.file) {
+            // Ensure the URL includes the complete server path
+            profileImageUrl = uploadResponse.file.url;
+            // Check if URL is relative and prepend base URL if needed
+            if (profileImageUrl && !profileImageUrl.startsWith('http')) {
+              profileImageUrl = `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileImageUrl}`;
+            }
+            console.log("Profile image uploaded successfully:", profileImageUrl);
+          }
+        } catch (uploadError) {
+          console.error("Error uploading profile image:", uploadError);
+          toast({
+            title: 'Warning',
+            description: 'Failed to upload profile image. Using default or URL instead.',
+            variant: 'destructive',
+          });
+        }
+      }
+
       // Create member data exactly matching backend Member model
       const memberData = {
         name: newCommitteeMember.name,
         email: newCommitteeMember.email,
         role: newCommitteeMember.role || 'Member', // Must be one of the enum values
         position: newCommitteeMember.department || newCommitteeMember.role || 'Committee Member',
-        avatar: newCommitteeMember.image || 'default-avatar.png',
+        avatar: profileImageUrl,
         bio: `Committee member - ${newCommitteeMember.department || 'General'}`,
         socialLinks: {
           linkedin: '',
@@ -574,6 +721,7 @@ const AdminDashboard = () => {
         department: '',
         isAdmin: true
       });
+      setMemberImageFile(null);
       setIsCommitteeDialogOpen(false);
     } catch (error) {
       console.error('Error adding committee member:', error);
@@ -593,17 +741,52 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, members: true }));
       
+      // Upload member profile image if provided
+      let profileImageUrl = editingMember.image || 'default-avatar.png';
+      
+      if (memberImageFile) {
+        try {
+          const uploadResponse = await uploadService.uploadProfileImage(memberImageFile);
+          if (uploadResponse.success && uploadResponse.file) {
+            // Ensure the URL includes the complete server path
+            profileImageUrl = uploadResponse.file.url;
+            // Check if URL is relative and prepend base URL if needed
+            if (profileImageUrl && !profileImageUrl.startsWith('http')) {
+              profileImageUrl = `${import.meta.env.VITE_API_URL.replace('/api', '')}${profileImageUrl}`;
+            }
+            console.log("Profile image uploaded successfully:", profileImageUrl);
+          }
+        } catch (uploadError) {
+          console.error("Error uploading profile image:", uploadError);
+          toast({
+            title: 'Warning',
+            description: 'Failed to upload profile image. Using existing or URL instead.',
+            variant: 'destructive',
+          });
+        }
+      }
+      
+      // Update member with new image URL if it was uploaded
+      const updatedMember = {
+        ...editingMember,
+        image: profileImageUrl
+      };
+      
       // Try to update committee member via API
       try {
-        await memberService.updateMember(editingMember.id.toString(), editingMember);
-        console.log("Committee member updated:", editingMember);
+        await memberService.updateMember(editingMember.id.toString(), {
+          ...editingMember,
+          avatar: profileImageUrl
+        });
+        console.log("Committee member updated:", updatedMember);
       } catch (apiError) {
         console.error("API error when updating committee member:", apiError);
       }
       
       // Update local state regardless of API success
-      setCommitteeMembers(prev => prev.map(m => m.id === editingMember.id ? editingMember : m));
+      setCommitteeMembers(prev => prev.map(m => m.id === editingMember.id ? updatedMember : m));
       setEditingMember(null);
+      setMemberImageFile(null);
       setIsCommitteeDialogOpen(false);
       toast({
         title: 'Success',
@@ -666,124 +849,58 @@ const AdminDashboard = () => {
   const activeEvents = events.filter(event => event.status === 'open').length;
 
   const handleAddImage = async () => {
-    if (!newImage.title) {
-      toast({
-        title: "Error",
-        description: "Please provide a title for the image",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!imageFile && !newImage.url) {
-      toast({
-        title: "Error",
-        description: "Please upload an image or provide an image URL",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setLoading(prev => ({ ...prev, gallery: true }));
-    
     try {
-      // Get current user information
-      const currentUser = localStorage.getItem('pixel_to_perfection_token') ? 
-        JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}') : { 
-          name: 'Admin User', 
-          _id: '6529d9bb9a5b4f5b63e5f376'  // Fallback admin ID
-        };
+      setLoading(prev => ({ ...prev, gallery: true }));
       
-      let imageUrl = newImage.url;
-      
-      // If there's a file, use FormData to upload it
-      if (imageFile) {
-        const formData = new FormData();
-        formData.append('image', imageFile);
-        formData.append('title', newImage.title);
-        formData.append('description', newImage.description || '');
-        
-        // If we have an event selected, add it
-        if (newImage.eventId) {
-          formData.append('eventId', newImage.eventId);
-        }
-        
-        // Use the gallery service to create the image with file upload
-        console.log("Sending gallery image file to API:", formData);
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}/gallery`, {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('pixel_to_perfection_token')}`
-          },
-          credentials: 'include'
+      if (!imageFile) {
+        toast({
+          title: "Error",
+          description: "Please select an image to upload",
+          variant: "destructive",
         });
-        
-        if (!response.ok) {
-          throw new Error(`Server error: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log("Gallery image creation response:", data);
-        
-        // Process response and add to state
-        if (data && data.data) {
-          // Create a properly formatted GalleryImage object from the response
-          const galleryImage: GalleryImage = {
-            id: data.data._id ? parseInt(data.data._id.substring(0, 8), 16) : Date.now() % 10000,
-            title: data.data.title || newImage.title,
-            url: data.data.imageUrl || newImage.url,
-            description: data.data.description || newImage.description || '',
-            uploadedBy: currentUser.name || 'Admin',
-            uploadDate: data.data.uploadDate || new Date().toISOString()
-          };
-          
-          setGalleryImages(prev => [...prev, galleryImage]);
-          
-          toast({
-            title: 'Success',
-            description: 'Image added to gallery successfully!',
-          });
-        }
-      } else {
-        // Use the existing URL approach as fallback
-        const imageData = {
-          title: newImage.title,
-          imageUrl: newImage.url,
-          description: newImage.description || '',
-          uploadedBy: currentUser._id || '6529d9bb9a5b4f5b63e5f376',
-          uploadDate: new Date().toISOString()
-        };
-        
-        console.log("Sending gallery image data to API:", imageData);
-        
-        // Use the gallery service to create the image
-        const response = await galleryService.createGalleryImage(imageData);
-        console.log("Gallery image creation response:", response);
-        
-        // Process response and add to state
-        if (response && response.data) {
-          const apiData = response.data;
-          // Create a properly formatted GalleryImage object from the response
-          const galleryImage: GalleryImage = {
-            id: apiData._id ? parseInt(apiData._id, 16) % 10000 : Date.now() % 10000, // Convert ObjectId to number or use timestamp
-            title: apiData.title || newImage.title,
-            url: apiData.imageUrl || newImage.url,
-            description: apiData.description || newImage.description || '',
-            uploadedBy: currentUser.name || 'Admin',
-            uploadDate: apiData.uploadDate || new Date().toISOString()
-          };
-          
-          setGalleryImages(prev => [...prev, galleryImage]);
-          
-          toast({
-            title: 'Success',
-            description: 'Image added to gallery successfully!',
-          });
-        }
+        return;
       }
       
-      // Reset form with proper fields for GalleryImage type
+      // Upload image using our service - ensuring we use the correct field name 'images'
+      const uploadResponse = await uploadService.uploadGalleryImages([imageFile]);
+      
+      if (!uploadResponse.success) {
+        throw new Error('Image upload failed');
+      }
+      
+      // Get the uploaded file URL from response
+      const imageUrl = uploadResponse.files[0].url;
+      
+      // Fix URL path if needed (handle double slashes and ensure full URL)
+      let fixedImageUrl = imageUrl;
+      if (fixedImageUrl && !fixedImageUrl.startsWith('http')) {
+        fixedImageUrl = `${import.meta.env.VITE_API_URL.replace('/api', '')}${fixedImageUrl.startsWith('/') ? fixedImageUrl : `/${fixedImageUrl}`}`.replace('//', '/');
+      }
+      
+      // Create gallery entry with the image URL
+      const galleryData = {
+        title: newImage.title,
+        description: newImage.description || '',
+        imageUrl: fixedImageUrl,
+        eventId: newImage.eventId || undefined
+      };
+      
+      const response = await galleryService.createGalleryImage(galleryData);
+      console.log("Gallery image created:", response);
+      
+      // Add to local state
+      const galleryImage = {
+        id: response.data._id || galleryImages.length + 1,
+        title: newImage.title,
+        url: fixedImageUrl,
+        uploadedBy: 'Admin',
+        uploadDate: new Date().toISOString(),
+        description: newImage.description
+      };
+      
+      setGalleryImages(prev => [...prev, galleryImage]);
+      
+      // Reset form
       setNewImage({
         title: '',
         url: '',
@@ -792,34 +909,29 @@ const AdminDashboard = () => {
         description: '',
         eventId: ''
       });
-      
-      // Reset file input
       setImageFile(null);
       
-      // Close the dialog
       setIsGalleryDialogOpen(false);
-    } catch (error) {
-      console.error('Error adding image:', error);
-      
-      // Create a local fallback with proper GalleryImage structure
-      const localImage: GalleryImage = {
-        id: galleryImages.length + 1,
-        title: newImage.title,
-        url: imageFile ? URL.createObjectURL(imageFile) : newImage.url,
-        description: newImage.description || '',
-        uploadedBy: 'Admin User',
-        uploadDate: new Date().toISOString()
-      };
-      
-      setGalleryImages(prev => [...prev, localImage]);
       
       toast({
-        title: 'Warning',
-        description: 'Image saved locally only. Server error occurred.',
-        variant: 'destructive',
+        title: "Success",
+        description: "Image added successfully",
+      });
+    } catch (error) {
+      console.error('Error adding image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add image",
+        variant: "destructive",
       });
     } finally {
       setLoading(prev => ({ ...prev, gallery: false }));
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImageFile(e.target.files[0]);
     }
   };
 
@@ -1066,67 +1178,107 @@ const AdminDashboard = () => {
             
             <div>
               <Label htmlFor="image">Image Upload</Label>
-              <Input
-                id="image"
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    setImageFile(e.target.files[0]);
-                  }
-                }}
-              />
-              <p className="text-xs text-gray-500 mt-1">Or provide a URL below</p>
-            </div>
-            
-            <div>
-              <Label htmlFor="url">Image URL (optional if uploading file)</Label>
-              <Input
-                id="url"
-                value={newImage.url}
-                onChange={(e) => setNewImage({ ...newImage, url: e.target.value })}
-              />
+              <div className="border border-input rounded-md p-2">
+                <div className="flex items-center justify-center w-full">
+                  <label 
+                    htmlFor="gallery-image-upload" 
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-background hover:bg-muted/50"
+                  >
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      {imageFile ? (
+                        <div className="flex flex-col items-center">
+                          <img 
+                            src={URL.createObjectURL(imageFile)} 
+                            alt="Preview" 
+                            className="w-20 h-20 object-cover rounded-md mb-2" 
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            {imageFile.name}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center">
+                          <ImageIcon className="w-8 h-8 text-muted-foreground mb-2" />
+                          <p className="mb-2 text-sm text-muted-foreground">
+                            <span className="font-semibold">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            JPG, PNG, GIF (MAX. 10MB)
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <input 
+                      id="gallery-image-upload" 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
             
             <div>
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
-                value={newImage.description}
+                value={newImage.description || ''}
                 onChange={(e) => setNewImage({ ...newImage, description: e.target.value })}
               />
             </div>
             
-            {events.length > 0 && (
-              <div>
-                <Label htmlFor="eventId">Associated Event (optional)</Label>
-                <select
-                  id="eventId"
-                  className="w-full p-2 border rounded"
-                  value={newImage.eventId}
-                  onChange={(e) => setNewImage({ ...newImage, eventId: e.target.value })}
-                >
-                  <option value="">None</option>
-                  {events.map((event) => (
-                    <option key={event.id} value={event.id.toString()}>
-                      {event.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div>
+              <Label htmlFor="eventId">Related Event (Optional)</Label>
+              <select
+                id="eventId"
+                value={newImage.eventId || ''}
+                onChange={(e) => setNewImage({ ...newImage, eventId: e.target.value })}
+                className="w-full p-2 border rounded-md"
+              >
+                <option value="">Select an event</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+            </div>
             
-            <Button
-              onClick={handleAddImage}
-              disabled={loading.gallery}
+            <Button 
+              onClick={handleAddImage} 
               className="w-full"
+              disabled={!newImage.title || !imageFile || loading.gallery}
             >
-              {loading.gallery ? 'Adding...' : 'Add Image'}
+              {loading.gallery ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Uploading...
+                </span>
+              ) : (
+                "Add Image"
+              )}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
     );
+  };
+
+  const handleEventFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setEventImageFile(e.target.files[0]);
+    }
+  };
+
+  const handleMemberFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setMemberImageFile(e.target.files[0]);
+    }
   };
 
   return (
@@ -1234,6 +1386,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="budget" className="data-[state=active]:bg-neon-yellow/10">
               <DollarSign className="h-4 w-4 mr-2" />
               Budget
+            </TabsTrigger>
+            <TabsTrigger value="announcements" className="data-[state=active]:bg-neon-pink/10">
+              <Users className="h-4 w-4 mr-2" />
+              Announcements
             </TabsTrigger>
           </TabsList>
 
@@ -1359,7 +1515,7 @@ const AdminDashboard = () => {
                         />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="image">Image URL</Label>
+                        <Label htmlFor="image">Image URL (Optional)</Label>
                         <Input
                           id="image"
                           value={editingEvent?.image || newEvent.image}
@@ -1370,7 +1526,47 @@ const AdminDashboard = () => {
                               setNewEvent({ ...newEvent, image: e.target.value });
                             }
                           }}
+                          placeholder="Enter image URL or upload below"
                         />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="event-image-upload">Upload Event Image</Label>
+                        <label 
+                          htmlFor="event-image-upload" 
+                          className="border-2 border-dashed border-border/50 rounded-lg cursor-pointer hover:border-border transition-colors"
+                        >
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            {eventImageFile ? (
+                              <div className="flex flex-col items-center">
+                                <img 
+                                  src={URL.createObjectURL(eventImageFile)} 
+                                  alt="Preview" 
+                                  className="w-20 h-20 object-cover rounded-md mb-2" 
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                  {eventImageFile.name}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center">
+                                <ImageIcon className="w-8 h-8 text-muted-foreground mb-2" />
+                                <p className="mb-2 text-sm text-muted-foreground">
+                                  <span className="font-semibold">Click to upload</span> or drag and drop
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  JPG, PNG, GIF (MAX. 5MB)
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <input 
+                            id="event-image-upload" 
+                            type="file" 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handleEventFileChange}
+                          />
+                        </label>
                       </div>
                     </div>
                     <div className="flex justify-end gap-4">
@@ -1420,8 +1616,8 @@ const AdminDashboard = () => {
                           <TableCell>
                             <div className="flex items-center gap-4">
                               {event.image && (
-                                <img
-                                  src={event.image}
+                                <EventImage
+                                  src={getImageUrl(event.image)}
                                   alt={event.title}
                                   className="w-12 h-12 rounded-lg object-cover"
                                 />
@@ -1590,7 +1786,7 @@ const AdminDashboard = () => {
                         />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="memberImage">Image URL</Label>
+                        <Label htmlFor="memberImage">Image URL (Optional)</Label>
                         <Input
                           id="memberImage"
                           value={editingMember?.image || newCommitteeMember.image}
@@ -1601,7 +1797,47 @@ const AdminDashboard = () => {
                               setNewCommitteeMember({ ...newCommitteeMember, image: e.target.value });
                             }
                           }}
+                          placeholder="Enter image URL or upload below"
                         />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="member-image-upload">Upload Profile Image</Label>
+                        <label 
+                          htmlFor="member-image-upload" 
+                          className="border-2 border-dashed border-border/50 rounded-lg cursor-pointer hover:border-border transition-colors"
+                        >
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            {memberImageFile ? (
+                              <div className="flex flex-col items-center">
+                                <img 
+                                  src={URL.createObjectURL(memberImageFile)} 
+                                  alt="Preview" 
+                                  className="w-20 h-20 object-cover rounded-full mb-2" 
+                                />
+                                <p className="text-sm text-muted-foreground">
+                                  {memberImageFile.name}
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center">
+                                <ImageIcon className="w-8 h-8 text-muted-foreground mb-2" />
+                                <p className="mb-2 text-sm text-muted-foreground">
+                                  <span className="font-semibold">Click to upload</span> or drag and drop
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  JPG, PNG, GIF (MAX. 5MB)
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          <input 
+                            id="member-image-upload" 
+                            type="file" 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={handleMemberFileChange}
+                          />
+                        </label>
                       </div>
                     </div>
                     <div className="flex justify-end gap-4">
@@ -1650,10 +1886,15 @@ const AdminDashboard = () => {
                           <TableCell>
                             <div className="flex items-center gap-4">
                               {member.image && (
-                                <img
-                                  src={member.image}
+                                <MemberImage
+                                  src={getImageUrl(member.image)}
                                   alt={member.name}
                                   className="w-12 h-12 rounded-full object-cover"
+                                  onError={(e) => {
+                                    console.log("Profile image load error:", member.image);
+                                    e.currentTarget.src = '/placeholder-avatar.jpg';
+                                    e.currentTarget.onerror = null;
+                                  }}
                                 />
                               )}
                               <div>
@@ -1713,7 +1954,16 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {galleryImages.map((image) => (
                 <Card key={image.id} className="overflow-hidden">
-                  <img src={image.url} alt={image.title} className="w-full h-48 object-cover" />
+                  <img 
+                    src={getImageUrl(image.url)}
+                    alt={image.title} 
+                    className="w-full h-48 object-cover"
+                    onError={(e) => {
+                      console.log("Gallery image load error:", image.url);
+                      e.currentTarget.src = '/placeholder-image.jpg';
+                      e.currentTarget.onerror = null;
+                    }}
+                  />
                   <CardContent className="p-4">
                     <h3 className="font-semibold">{image.title}</h3>
                     <p className="text-sm text-muted-foreground">{image.description}</p>
@@ -1883,6 +2133,10 @@ const AdminDashboard = () => {
                 )}
               </TableBody>
             </Table>
+          </TabsContent>
+
+          <TabsContent value="announcements" className="space-y-4">
+            <Announcements isAdmin={true} limit={10} showForm={true} />
           </TabsContent>
         </Tabs>
       </div>
