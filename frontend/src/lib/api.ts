@@ -132,6 +132,21 @@ export const eventService = {
     return response.data;
   },
   
+  createEvent: async (eventData: any) => {
+    const response = await api.post('/events', eventData);
+    return response.data;
+  },
+  
+  updateEvent: async (id: string, eventData: any) => {
+    const response = await api.put(`/events/${id}`, eventData);
+    return response.data;
+  },
+  
+  deleteEvent: async (id: string) => {
+    const response = await api.delete(`/events/${id}`);
+    return response.data;
+  },
+  
   registerForEvent: async (eventId: string, data: { studentId?: string }) => {
     const response = await api.post(`/events/${eventId}/register`, data);
     return response.data;
@@ -163,6 +178,11 @@ export const budgetService = {
     const response = await api.post('/budgets', data);
     return response.data;
   },
+  
+  deleteBudgetEntry: async (id: string) => {
+    const response = await api.delete(`/budgets/${id}`);
+    return response.data;
+  },
 };
 
 // Member services
@@ -174,6 +194,21 @@ export const memberService = {
   
   getMember: async (id: string) => {
     const response = await api.get(`/members/${id}`);
+    return response.data;
+  },
+
+  createMember: async (memberData: any) => {
+    const response = await api.post('/members', memberData);
+    return response.data;
+  },
+  
+  updateMember: async (id: string, memberData: any) => {
+    const response = await api.put(`/members/${id}`, memberData);
+    return response.data;
+  },
+  
+  deleteMember: async (id: string) => {
+    const response = await api.delete(`/members/${id}`);
     return response.data;
   },
 };

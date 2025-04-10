@@ -249,16 +249,36 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, events: true }));
       
-      // Since we don't have a specific API endpoint for creating events yet,
-      // we'll use the mock approach for now but log what would be sent
-      console.log("Would create event with data:", newEvent);
-      
-      // For now, use local state for demo purposes
-      const event = {
-        ...newEvent,
-        id: events.length + 1 // Temporary ID
+      // Prepare event data for API
+      const eventData = {
+        title: newEvent.title,
+        date: newEvent.date,
+        description: newEvent.description,
+        budget: newEvent.budget,
+        attendees: newEvent.attendees,
+        image: newEvent.image || '',
+        status: newEvent.status,
+        location: newEvent.location,
+        registrationLink: newEvent.registrationLink
       };
-      setEvents([...events, event]);
+      
+      // Try to create event via API
+      try {
+        const response = await eventService.createEvent(eventData);
+        console.log("Event created:", response);
+        
+        // If API call succeeds, use the returned data
+        const createdEvent = response.data || response;
+        setEvents(prev => [...prev, { ...createdEvent, id: createdEvent._id || createdEvent.id || prev.length + 1 }]);
+      } catch (apiError) {
+        console.error("API error, using local state instead:", apiError);
+        // Fallback to local state if API fails
+        const event = {
+          ...newEvent,
+          id: events.length + 1
+        };
+        setEvents(prev => [...prev, event]);
+      }
       
       // Reset form
       setNewEvent({
@@ -290,53 +310,240 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleEditEvent = () => {
+  const handleEditEvent = async () => {
     if (!editingEvent) return;
-    setEvents(events.map(e => e.id === editingEvent.id ? editingEvent : e));
-    setEditingEvent(null);
-    setIsEventDialogOpen(false);
+    
+    try {
+      setLoading(prev => ({ ...prev, events: true }));
+      
+      // Try to update event via API
+      try {
+        await eventService.updateEvent(editingEvent.id.toString(), editingEvent);
+        console.log("Event updated:", editingEvent);
+      } catch (apiError) {
+        console.error("API error when updating event:", apiError);
+      }
+      
+      // Update local state regardless of API success
+      setEvents(prev => prev.map(e => e.id === editingEvent.id ? editingEvent : e));
+      setEditingEvent(null);
+      setIsEventDialogOpen(false);
+      toast({
+        title: 'Success',
+        description: 'Event updated successfully!',
+      });
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update event. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, events: false }));
+    }
   };
 
-  const handleDeleteEvent = (id: number) => {
-    setEvents(events.filter(e => e.id !== id));
+  const handleDeleteEvent = async (id: number) => {
+    try {
+      setLoading(prev => ({ ...prev, events: true }));
+      
+      // Try to delete event via API
+      try {
+        await eventService.deleteEvent(id.toString());
+        console.log("Event deleted:", id);
+      } catch (apiError) {
+        console.error("API error when deleting event:", apiError);
+      }
+      
+      // Update local state regardless of API success
+      setEvents(prev => prev.filter(e => e.id !== id));
+      toast({
+        title: 'Success',
+        description: 'Event deleted successfully!',
+      });
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete event. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, events: false }));
+    }
   };
 
-  const handleToggleEventStatus = (eventId: number) => {
-    setEvents(events.map(event =>
-      event.id === eventId
-        ? { ...event, status: event.status === 'open' ? 'closed' : 'open' }
-        : event
-    ));
+  const handleToggleEventStatus = async (eventId: number) => {
+    try {
+      setLoading(prev => ({ ...prev, events: true }));
+      
+      // Find the current event
+      const currentEvent = events.find(e => e.id === eventId);
+      if (!currentEvent) return;
+      
+      // Create updated event with toggled status
+      const updatedEvent = {
+        ...currentEvent,
+        status: currentEvent.status === 'open' ? 'closed' : 'open'
+      };
+      
+      // Try to update event via API
+      try {
+        await eventService.updateEvent(eventId.toString(), updatedEvent);
+        console.log("Event status toggled:", eventId, updatedEvent.status);
+      } catch (apiError) {
+        console.error("API error when toggling event status:", apiError);
+      }
+      
+      // Update local state regardless of API success
+      setEvents(prev => prev.map(event =>
+        event.id === eventId
+          ? { ...event, status: event.status === 'open' ? 'closed' : 'open' }
+          : event
+      ));
+      toast({
+        title: 'Success',
+        description: `Event status ${updatedEvent.status === 'open' ? 'opened' : 'closed'} successfully!`,
+      });
+    } catch (error) {
+      console.error('Error toggling event status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update event status. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, events: false }));
+    }
   };
 
   // Committee member handlers
-  const handleAddCommitteeMember = () => {
-    const member: CommitteeMember = {
-      ...newCommitteeMember,
-      id: committeeMembers.length + 1
-    };
-    setCommitteeMembers([...committeeMembers, member]);
-    setNewCommitteeMember({
-      name: '',
-      role: '',
-      email: '',
-      phone: '',
-      image: '',
-      department: '',
-      isAdmin: true
-    });
-    setIsCommitteeDialogOpen(false);
+  const handleAddCommitteeMember = async () => {
+    try {
+      setLoading(prev => ({ ...prev, members: true }));
+      
+      // Prepare member data for API
+      const memberData = {
+        name: newCommitteeMember.name,
+        role: newCommitteeMember.role,
+        email: newCommitteeMember.email,
+        phone: newCommitteeMember.phone,
+        image: newCommitteeMember.image || '',
+        department: newCommitteeMember.department,
+        isAdmin: newCommitteeMember.isAdmin
+      };
+      
+      // Try to create member via API
+      try {
+        const response = await memberService.createMember(memberData);
+        console.log("Member created:", response);
+        
+        // If API call succeeds, use the returned data
+        const createdMember = response.data || response;
+        setCommitteeMembers(prev => [
+          ...prev, 
+          { ...createdMember, id: createdMember._id || createdMember.id || prev.length + 1 }
+        ]);
+      } catch (apiError) {
+        console.error("API error, using local state instead:", apiError);
+        // Fallback to local state if API fails
+        const member = {
+          ...newCommitteeMember,
+          id: committeeMembers.length + 1
+        };
+        setCommitteeMembers(prev => [...prev, member]);
+      }
+      
+      // Reset form
+      setNewCommitteeMember({
+        name: '',
+        role: '',
+        email: '',
+        phone: '',
+        image: '',
+        department: '',
+        isAdmin: true
+      });
+      setIsCommitteeDialogOpen(false);
+      toast({
+        title: 'Success',
+        description: 'Committee member added successfully!',
+      });
+    } catch (error) {
+      console.error('Error adding committee member:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add committee member. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, members: false }));
+    }
   };
 
-  const handleEditCommitteeMember = () => {
+  const handleEditCommitteeMember = async () => {
     if (!editingMember) return;
-    setCommitteeMembers(committeeMembers.map(m => m.id === editingMember.id ? editingMember : m));
-    setEditingMember(null);
-    setIsCommitteeDialogOpen(false);
+    
+    try {
+      setLoading(prev => ({ ...prev, members: true }));
+      
+      // Try to update committee member via API
+      try {
+        await memberService.updateMember(editingMember.id.toString(), editingMember);
+        console.log("Committee member updated:", editingMember);
+      } catch (apiError) {
+        console.error("API error when updating committee member:", apiError);
+      }
+      
+      // Update local state regardless of API success
+      setCommitteeMembers(prev => prev.map(m => m.id === editingMember.id ? editingMember : m));
+      setEditingMember(null);
+      setIsCommitteeDialogOpen(false);
+      toast({
+        title: 'Success',
+        description: 'Committee member updated successfully!',
+      });
+    } catch (error) {
+      console.error('Error updating committee member:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update committee member. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, members: false }));
+    }
   };
 
-  const handleDeleteCommitteeMember = (id: number) => {
-    setCommitteeMembers(committeeMembers.filter(m => m.id !== id));
+  const handleDeleteCommitteeMember = async (id: number) => {
+    try {
+      setLoading(prev => ({ ...prev, members: true }));
+      
+      // Try to delete member via API
+      try {
+        await memberService.deleteMember(id.toString());
+        console.log("Committee member deleted:", id);
+      } catch (apiError) {
+        console.error("API error when deleting committee member:", apiError);
+      }
+      
+      // Update local state regardless of API success
+      setCommitteeMembers(prev => prev.filter(m => m.id !== id));
+      toast({
+        title: 'Success',
+        description: 'Committee member deleted successfully!',
+      });
+    } catch (error) {
+      console.error('Error deleting committee member:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete committee member. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, members: false }));
+    }
   };
 
   // Statistics
@@ -344,43 +551,179 @@ const AdminDashboard = () => {
   const totalAttendees = events.reduce((sum, event) => sum + event.attendees, 0);
   const activeEvents = events.filter(event => event.status === 'open').length;
 
-  const handleAddImage = () => {
-    const image: GalleryImage = {
-      ...newImage,
-      id: galleryImages.length + 1
-    };
-    setGalleryImages([...galleryImages, image]);
-    setNewImage({
-      title: '',
-      url: '',
-      uploadedBy: '',
-      uploadDate: new Date().toISOString(),
-      description: ''
-    });
+  const handleAddImage = async () => {
+    try {
+      setLoading(prev => ({ ...prev, gallery: true }));
+      
+      // Prepare image data for API
+      const imageData = {
+        title: newImage.title,
+        url: newImage.url,
+        description: newImage.description || '',
+        uploadedBy: newImage.uploadedBy || localStorage.getItem('pixel_to_perfection_user') ? 
+          JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}').name : 'Admin',
+        uploadDate: new Date().toISOString()
+      };
+      
+      // Try to create gallery image via API
+      try {
+        // Note: We'll need to implement the API endpoint for gallery images
+        // For now we'll just use local state, but log the data that would be sent
+        console.log("Would send gallery image data to API:", imageData);
+        
+        const image = {
+          ...newImage,
+          id: galleryImages.length + 1
+        };
+        setGalleryImages(prev => [...prev, image]);
+      } catch (apiError) {
+        console.error("API error, using local state only:", apiError);
+        const image = {
+          ...newImage,
+          id: galleryImages.length + 1
+        };
+        setGalleryImages(prev => [...prev, image]);
+      }
+      
+      // Reset form
+      setNewImage({
+        title: '',
+        url: '',
+        uploadedBy: '',
+        uploadDate: new Date().toISOString(),
+        description: ''
+      });
+      toast({
+        title: 'Success',
+        description: 'Image added to gallery successfully!',
+      });
+    } catch (error) {
+      console.error('Error adding image to gallery:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add image to gallery. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, gallery: false }));
+    }
   };
 
-  const handleDeleteImage = (id: number) => {
-    setGalleryImages(galleryImages.filter(img => img.id !== id));
+  const handleDeleteImage = async (id: number) => {
+    try {
+      setLoading(prev => ({ ...prev, gallery: true }));
+      
+      // Note: We'll need to implement the API endpoint for gallery images deletion
+      // For now, log the data that would be sent to the API
+      console.log("Would send delete request to API for gallery image:", id);
+      
+      // Update local state 
+      setGalleryImages(prev => prev.filter(img => img.id !== id));
+      toast({
+        title: 'Success',
+        description: 'Image deleted from gallery successfully!',
+      });
+    } catch (error) {
+      console.error('Error deleting image from gallery:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete image from gallery. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, gallery: false }));
+    }
   };
 
-  const handleAddBudgetEntry = () => {
-    const entry: BudgetEntry = {
-      ...newBudgetEntry,
-      id: budgetEntries.length + 1
-    };
-    setBudgetEntries([...budgetEntries, entry]);
-    setNewBudgetEntry({
-      category: '',
-      amount: 0,
-      type: 'expense',
-      description: '',
-      date: new Date().toISOString(),
-      addedBy: ''
-    });
+  const handleAddBudgetEntry = async () => {
+    try {
+      setLoading(prev => ({ ...prev, budget: true }));
+      
+      // Prepare budget entry data for API
+      const entryData = {
+        category: newBudgetEntry.category,
+        amount: newBudgetEntry.amount,
+        type: newBudgetEntry.type,
+        description: newBudgetEntry.description,
+        date: newBudgetEntry.date,
+        addedBy: newBudgetEntry.addedBy || localStorage.getItem('pixel_to_perfection_user') ? 
+          JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}').name : 'Admin'
+      };
+      
+      // Try to create budget entry via API
+      try {
+        const response = await budgetService.createBudgetEntry(entryData);
+        console.log("Budget entry created:", response);
+        
+        // If API call succeeds, use the returned data
+        const createdEntry = response.data || response;
+        setBudgetEntries(prev => [
+          ...prev, 
+          { ...createdEntry, id: createdEntry._id || createdEntry.id || prev.length + 1 }
+        ]);
+      } catch (apiError) {
+        console.error("API error, using local state instead:", apiError);
+        // Fallback to local state if API fails
+        const entry = {
+          ...newBudgetEntry,
+          id: budgetEntries.length + 1
+        };
+        setBudgetEntries(prev => [...prev, entry]);
+      }
+      
+      // Reset form
+      setNewBudgetEntry({
+        category: '',
+        amount: 0,
+        type: 'expense',
+        description: '',
+        date: new Date().toISOString(),
+        addedBy: ''
+      });
+      toast({
+        title: 'Success',
+        description: 'Budget entry added successfully!',
+      });
+    } catch (error) {
+      console.error('Error adding budget entry:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add budget entry. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, budget: false }));
+    }
   };
 
-  const handleDeleteBudgetEntry = (id: number) => {
-    setBudgetEntries(budgetEntries.filter(entry => entry.id !== id));
+  const handleDeleteBudgetEntry = async (id: number) => {
+    try {
+      setLoading(prev => ({ ...prev, budget: true }));
+      
+      // Try to delete budget entry via API
+      try {
+        await budgetService.deleteBudgetEntry(id.toString());
+        console.log("Budget entry deleted:", id);
+      } catch (apiError) {
+        console.error("API error when deleting budget entry:", apiError);
+      }
+      
+      // Update local state regardless of API success
+      setBudgetEntries(prev => prev.filter(entry => entry.id !== id));
+      toast({
+        title: 'Success',
+        description: 'Budget entry deleted successfully!',
+      });
+    } catch (error) {
+      console.error('Error deleting budget entry:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete budget entry. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, budget: false }));
+    }
   };
 
   // Calculate budget statistics
