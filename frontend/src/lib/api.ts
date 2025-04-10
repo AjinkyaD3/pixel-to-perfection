@@ -253,7 +253,8 @@ export const announcementService = {
   },
   
   pinAnnouncement: async (id: string, isPinned: boolean) => {
-    const response = await api.put(`/announcements/${id}/pin`, { isPinned });
+    // Backend toggles the pinned status, so we don't need to send isPinned
+    const response = await api.put(`/announcements/${id}/pin`);
     return response.data;
   }
 };

@@ -37,7 +37,11 @@ interface Announcement {
     name: string;
     email: string;
   };
-  attachments?: string[];
+  attachments?: {
+    name: string;
+    url: string;
+    type: string;
+  }[];
 }
 
 interface AnnouncementsProps {
@@ -125,7 +129,7 @@ const Announcements = ({ isAdmin = false, limit = 5, showForm = true }: Announce
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const uploadFiles = async (): Promise<string[]> => {
+  const uploadFiles = async () => {
     if (selectedFiles.length === 0) return [];
     
     setIsUploading(true);
@@ -137,15 +141,14 @@ const Announcements = ({ isAdmin = false, limit = 5, showForm = true }: Announce
       setIsUploading(false);
       
       if (response.success && response.files) {
-        // Return just the URLs with fixed paths (remove double slashes)
-        return response.files.map((file: any) => {
-          let url = file.url;
-          // Fix double slashes in URL but preserve http:// or https://
-          url = url.replace(/(https?:\/\/)|(\/\/+)/g, (match: string) => {
+        // Convert file data to proper attachment objects
+        return response.files.map((file: any) => ({
+          name: file.originalname || file.filename,
+          url: file.url.replace(/(https?:\/\/)|(\/\/+)/g, (match: string) => {
             return match.startsWith('http') ? match : '/';
-          });
-          return url;
-        });
+          }),
+          type: file.mimetype || 'application/octet-stream'
+        }));
       }
       
       return [];
@@ -174,16 +177,16 @@ const Announcements = ({ isAdmin = false, limit = 5, showForm = true }: Announce
 
       setLoading(true);
       
-      // Upload files and get array of URLs
-      let uploadedAttachmentUrls: string[] = [];
+      // Upload files and get array of attachment objects
+      let uploadedAttachments = [];
       if (selectedFiles.length > 0) {
-        uploadedAttachmentUrls = await uploadFiles();
+        uploadedAttachments = await uploadFiles();
       }
       
-      // Create announcement with attachment URLs
+      // Create announcement with attachment objects
       const announcementData = {
         ...newAnnouncement,
-        attachments: uploadedAttachmentUrls
+        attachments: uploadedAttachments
       };
       
       console.log('Sending announcement data:', announcementData);
@@ -201,9 +204,8 @@ const Announcements = ({ isAdmin = false, limit = 5, showForm = true }: Announce
         pinned: false,
         attachments: []
       });
-      setSelectedFiles([]);
-      setAttachments([]);
       
+      setSelectedFiles([]);
       setIsFormOpen(false);
       
       toast({
@@ -501,14 +503,14 @@ const Announcements = ({ isAdmin = false, limit = 5, showForm = true }: Announce
                       {announcement.attachments.map((attachment, index) => (
                         <a 
                           key={index} 
-                          href={attachment}
+                          href={attachment.url}
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="flex items-center p-2 bg-muted rounded-md hover:bg-muted/80 transition-colors"
                         >
                           <File className="h-4 w-4 mr-2 text-muted-foreground" />
                           <span className="text-sm">
-                            {attachment.split('/').pop() || `Attachment ${index + 1}`}
+                            {attachment.name || `Attachment ${index + 1}`}
                           </span>
                         </a>
                       ))}

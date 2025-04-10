@@ -18,6 +18,7 @@ const announcementRoutes = require('./routes/announcements');
 const memberRoutes = require('./routes/members');
 const leaderboardRoutes = require('./routes/leaderboard');
 const uploadRoutes = require('./routes/uploads');
+const galleryRoutes = require('./routes/gallery');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -60,12 +61,17 @@ if (mongoose.connection.readyState === 0) {
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081', 'http://127.0.0.1:5173', 'http://127.0.0.1:8080', 'http://127.0.0.1:8081'],
+
+// CORS configuration
+const corsOptions = {
+  origin: ['http://localhost:8080', 'http://127.0.0.1:8080'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
@@ -92,6 +98,7 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/uploads', uploadRoutes);
+app.use('/api/gallery', galleryRoutes);
 
 // Error handling
 app.use(errorHandler);

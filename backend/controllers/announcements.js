@@ -119,14 +119,14 @@ exports.createAnnouncement = async (req, res, next) => {
       }
     }
     
-    // Create announcement with all required fields
+    // Create announcement with user ID
     const announcement = await Announcement.create({
       title,
       content,
       type,
       targetAudience,
       year: targetAudience === 'specific_year' ? year : undefined,
-      attachments: typeof attachments === 'string' ? JSON.parse(attachments) : attachments || [],
+      attachments: attachments || [],
       pinned: pinned || false,
       createdBy: req.user.id
     });

@@ -1,5 +1,20 @@
 const mongoose = require('mongoose');
 
+const attachmentSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  url: {
+    type: String,
+    required: true
+  },
+  type: {
+    type: String,
+    required: true
+  }
+}, { _id: false });
+
 const announcementSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -28,7 +43,7 @@ const announcementSchema = new mongoose.Schema({
       return this.targetAudience === 'specific_year';
     }
   },
-  attachments: [String],
+  attachments: [attachmentSchema],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
