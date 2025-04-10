@@ -2,8 +2,8 @@ import axios from 'axios';
 
 // Environment variables
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-const TOKEN_NAME = import.meta.env.VITE_TOKEN_NAME || 'token';
-const USER_NAME = import.meta.env.VITE_USER_NAME || 'user';
+const TOKEN_NAME = 'pixel_to_perfection_token';
+const USER_NAME = 'pixel_to_perfection_user';
 
 // Create axios instance with base URL
 const api = axios.create({
@@ -54,6 +54,11 @@ api.interceptors.response.use(
       }
     }
     
+    // Log rate limit errors
+    if (error.response?.status === 429) {
+      console.error('Rate limit exceeded:', error.response.data);
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -61,10 +66,20 @@ api.interceptors.response.use(
 // Authentication services
 export const authService = {
   login: async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
-    localStorage.setItem(TOKEN_NAME, response.data.token);
-    localStorage.setItem(USER_NAME, JSON.stringify(response.data.user));
-    return response.data;
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      
+      if (response.data && response.data.token && response.data.user) {
+        localStorage.setItem(TOKEN_NAME, response.data.token);
+        localStorage.setItem(USER_NAME, JSON.stringify(response.data.user));
+        return response.data;
+      } else {
+        throw new Error('Invalid response format from server');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   },
   
   signup: async (userData: { 
@@ -79,27 +94,57 @@ export const authService = {
     profilePicture?: string;
     registrationCode?: string;
   }) => {
-    const response = await api.post('/auth/signup', userData);
-    localStorage.setItem(TOKEN_NAME, response.data.token);
-    localStorage.setItem(USER_NAME, JSON.stringify(response.data.user));
-    return response.data;
+    try {
+      const response = await api.post('/auth/signup', userData);
+      
+      if (response.data && response.data.token && response.data.user) {
+        localStorage.setItem(TOKEN_NAME, response.data.token);
+        localStorage.setItem(USER_NAME, JSON.stringify(response.data.user));
+        return response.data;
+      } else {
+        throw new Error('Invalid response format from server');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      throw error;
+    }
   },
   
   logout: async () => {
-    const response = await api.post('/auth/logout');
-    localStorage.removeItem(TOKEN_NAME);
-    localStorage.removeItem(USER_NAME);
-    return response.data;
+    try {
+      const response = await api.post('/auth/logout');
+      localStorage.removeItem(TOKEN_NAME);
+      localStorage.removeItem(USER_NAME);
+      return response.data;
+    } catch (error) {
+      // Still remove tokens even if the API call fails
+      localStorage.removeItem(TOKEN_NAME);
+      localStorage.removeItem(USER_NAME);
+      console.error('Logout error:', error);
+      throw error;
+    }
   },
   
   getMe: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
+    try {
+      const response = await api.get('/auth/me');
+      return response.data;
+    } catch (error) {
+      console.error('GetMe error:', error);
+      throw error;
+    }
   },
 
   getCurrentUser: () => {
-    const user = localStorage.getItem(USER_NAME);
-    return user ? JSON.parse(user) : null;
+    try {
+      const user = localStorage.getItem(USER_NAME);
+      return user ? JSON.parse(user) : null;
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      // Clear possibly corrupted data
+      localStorage.removeItem(USER_NAME);
+      return null;
+    }
   },
 
   isAuthenticated: () => {
@@ -133,8 +178,14 @@ export const eventService = {
   },
   
   createEvent: async (eventData: any) => {
-    const response = await api.post('/events', eventData);
-    return response.data;
+    try {
+      const response = await api.post('/events', eventData);
+      console.log("API response for event creation:", response);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating event:', error);
+      throw error;
+    }
   },
   
   updateEvent: async (id: string, eventData: any) => {
@@ -168,15 +219,15 @@ export const budgetService = {
     return response.data;
   },
   
-  createBudgetEntry: async (data: { 
-    amount: number;
-    description: string;
-    type: 'income' | 'expense';
-    category: string;
-    date: string;
-  }) => {
-    const response = await api.post('/budgets', data);
-    return response.data;
+  createBudgetEntry: async (data: any) => {
+    try {
+      const response = await api.post('/budgets', data);
+      console.log("API response for budget entry creation:", response);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating budget entry:', error);
+      throw error;
+    }
   },
   
   deleteBudgetEntry: async (id: string) => {
@@ -209,6 +260,37 @@ export const memberService = {
   
   deleteMember: async (id: string) => {
     const response = await api.delete(`/members/${id}`);
+    return response.data;
+  },
+};
+
+// Gallery services
+export const galleryService = {
+  getGalleryImages: async (params: { page?: number; limit?: number; search?: string }) => {
+    const response = await api.get('/gallery', { params });
+    return response.data;
+  },
+  
+  getGalleryImage: async (id: string) => {
+    const response = await api.get(`/gallery/${id}`);
+    return response.data;
+  },
+  
+  createGalleryImage: async (imageData: any) => {
+    try {
+      const response = await api.post('/gallery', imageData);
+      console.log("API response for gallery image creation:", response);
+      return {
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error creating gallery image:', error);
+      throw error;
+    }
+  },
+  
+  deleteGalleryImage: async (id: string) => {
+    const response = await api.delete(`/gallery/${id}`);
     return response.data;
   },
 };

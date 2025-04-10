@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,6 @@ import { motion } from 'framer-motion';
 import { Zap, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { authService } from '@/lib/api';
-
-// Set to true during development to bypass actual API calls
-const DEBUG_MODE = false;
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -20,6 +17,25 @@ const AdminLogin = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  // Check if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem('pixel_to_perfection_token');
+    const user = localStorage.getItem('pixel_to_perfection_user');
+    
+    if (token && user) {
+      try {
+        const userData = JSON.parse(user);
+        if (userData.role === 'admin') {
+          navigate('/admin/dashboard');
+        }
+      } catch (err) {
+        // Invalid user data in localStorage
+        localStorage.removeItem('pixel_to_perfection_token');
+        localStorage.removeItem('pixel_to_perfection_user');
+      }
+    }
+  }, [navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -32,36 +48,12 @@ const AdminLogin = () => {
     setLoading(true);
     
     try {
-      let data;
-
-      if (DEBUG_MODE) {
-        // Mock response for debugging/development if using test credentials
-        if (formData.email === 'admin@example.com' && formData.password === 'admin123') {
-          console.log('DEBUG MODE: Using mock admin login data');
-          data = {
-            token: 'mock-token-admin',
-            user: { 
-              _id: '1', 
-              name: 'Admin User', 
-              email: formData.email, 
-              role: 'admin' 
-            }
-          };
-          
-          // Store mock data in localStorage
-          localStorage.setItem('pixel_to_perfection_token', data.token);
-          localStorage.setItem('pixel_to_perfection_user', JSON.stringify(data.user));
-        } else {
-          throw new Error('Invalid credentials');
-        }
-      } else {
-        // Make actual API call
-        data = await authService.login(formData.email, formData.password);
-        
-        // Verify that the user is an admin
-        if (data.user.role !== 'admin') {
-          throw new Error('Access denied. Admin privileges required.');
-        }
+      // Make actual API call
+      const data = await authService.login(formData.email, formData.password);
+      
+      // Verify that the user is an admin
+      if (!data || !data.user || data.user.role !== 'admin') {
+        throw new Error('Access denied. Admin privileges required.');
       }
       
       toast({
@@ -70,9 +62,20 @@ const AdminLogin = () => {
       });
       
       navigate('/admin/dashboard');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Admin login error:', err);
-      setError('Invalid credentials or insufficient permissions');
+      
+      // Set appropriate error message based on the error
+      if (err.response && err.response.status === 429) {
+        setError('Too many login attempts. Please try again later.');
+      } else if (err.response && err.response.data && err.response.data.error) {
+        setError(err.response.data.error);
+      } else if (err.message.includes('Access denied')) {
+        setError('Access denied. Admin privileges required.');
+      } else {
+        setError('Invalid credentials or insufficient permissions');
+      }
+      
       toast({
         title: 'Error',
         description: 'Login failed. Please check your credentials.',

@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { eventService, memberService, budgetService } from '@/lib/api';
+import { eventService, memberService, budgetService, galleryService } from '@/lib/api';
 
 interface GalleryImage {
   id: number;
@@ -55,6 +55,26 @@ interface CommitteeMember {
   image: string;
   department: string;
   isAdmin: boolean;
+}
+
+interface BackendEvent {
+  _id?: string;
+  title: string;
+  description: string;
+  date: string;
+  venue: string;
+  organizer: string;
+  type: string;
+  capacity: number;
+  status: string;
+  registrationFee: number;
+  registrationRequired: boolean;
+  isActive: boolean;
+  image?: string;
+  createdBy: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  tags?: string[];
 }
 
 interface Event {
@@ -249,35 +269,80 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, events: true }));
       
-      // Prepare event data for API
-      const eventData = {
+      // Get current user information - default to admin ID if not available
+      const currentUser = localStorage.getItem('pixel_to_perfection_user') ? 
+        JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}') : { 
+          name: 'Admin User', 
+          _id: '6529d9bb9a5b4f5b63e5f376'  // Fallback admin ID
+        };
+      
+      // Create event data exactly matching backend model requirements
+      const backendEvent = {
         title: newEvent.title,
-        date: newEvent.date,
-        description: newEvent.description,
-        budget: newEvent.budget,
-        attendees: newEvent.attendees,
-        image: newEvent.image || '',
-        status: newEvent.status,
-        location: newEvent.location,
-        registrationLink: newEvent.registrationLink
+        description: newEvent.description || 'No description provided',
+        date: new Date(newEvent.date).toISOString().split('T')[0], // Format as YYYY-MM-DD
+        time: "10:00 AM", // Required field
+        venue: newEvent.location || 'To be announced',
+        type: 'workshop', // One of: 'workshop', 'seminar', 'competition', 'hackathon', 'other'
+        maxCapacity: Number(newEvent.attendees) || 100,
+        createdBy: currentUser._id || "6529d9bb9a5b4f5b63e5f376", // Must be a valid ObjectId
+        status: 'upcoming',
+        speaker: {
+          name: currentUser.name || 'Guest Speaker',
+          organization: 'University'
+        },
+        posterUrl: newEvent.image || 'default-poster.png',
+        isActive: true
       };
+      
+      console.log("Sending event data to API:", backendEvent);
       
       // Try to create event via API
       try {
-        const response = await eventService.createEvent(eventData);
+        const response = await eventService.createEvent(backendEvent);
         console.log("Event created:", response);
         
-        // If API call succeeds, use the returned data
+        // If API call succeeds, use the returned data and convert to frontend event format
         const createdEvent = response.data || response;
-        setEvents(prev => [...prev, { ...createdEvent, id: createdEvent._id || createdEvent.id || prev.length + 1 }]);
+        const frontendEvent: Event = {
+          id: createdEvent._id ? parseInt(createdEvent._id, 16) % 10000 : events.length + 1, // Generate a numeric ID from ObjectId
+          title: createdEvent.title || backendEvent.title,
+          date: createdEvent.date || backendEvent.date,
+          description: createdEvent.description || backendEvent.description,
+          budget: newEvent.budget || 0,
+          attendees: createdEvent.maxCapacity || backendEvent.maxCapacity,
+          image: createdEvent.posterUrl || backendEvent.posterUrl || '',
+          status: createdEvent.status === 'upcoming' ? 'open' : 'closed',
+          location: createdEvent.venue || backendEvent.venue,
+          registrationLink: newEvent.registrationLink || '',
+          expenses: []
+        };
+        
+        setEvents(prev => [...prev, frontendEvent]);
+        toast({
+          title: 'Success',
+          description: 'Event added successfully!',
+        });
       } catch (apiError) {
         console.error("API error, using local state instead:", apiError);
+        
+        // Log detailed error information for debugging
+        if (apiError.response) {
+          console.error("Error response data:", apiError.response.data);
+          console.error("Error response status:", apiError.response.status);
+        }
+        
         // Fallback to local state if API fails
         const event = {
           ...newEvent,
           id: events.length + 1
         };
         setEvents(prev => [...prev, event]);
+        toast({
+          title: 'Warning',
+          description: 'Event saved locally only. Server error occurred.',
+          variant: 'destructive',
+        });
       }
       
       // Reset form
@@ -294,10 +359,6 @@ const AdminDashboard = () => {
         expenses: []
       });
       setIsEventDialogOpen(false);
-      toast({
-        title: 'Success',
-        description: 'Event added successfully!',
-      });
     } catch (error) {
       console.error('Error adding event:', error);
       toast({
@@ -348,10 +409,19 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, events: true }));
       
+      // Find the event to get possible MongoDB ObjectId
+      const eventToDelete = events.find(e => e.id === id);
+      if (!eventToDelete) return;
+      
+      // Try to get MongoDB _id if it exists in event object
+      const mongoId = (eventToDelete as any)._id;
+      
       // Try to delete event via API
       try {
-        await eventService.deleteEvent(id.toString());
-        console.log("Event deleted:", id);
+        // Use MongoDB ObjectId if available, otherwise use numeric id as string
+        const idToDelete = mongoId || id.toString();
+        await eventService.deleteEvent(idToDelete);
+        console.log("Event deleted:", idToDelete);
       } catch (apiError) {
         console.error("API error when deleting event:", apiError);
       }
@@ -423,16 +493,24 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, members: true }));
       
-      // Prepare member data for API
+      // Create member data exactly matching backend Member model
       const memberData = {
         name: newCommitteeMember.name,
-        role: newCommitteeMember.role,
         email: newCommitteeMember.email,
-        phone: newCommitteeMember.phone,
-        image: newCommitteeMember.image || '',
-        department: newCommitteeMember.department,
-        isAdmin: newCommitteeMember.isAdmin
+        role: newCommitteeMember.role || 'Member', // Must be one of the enum values
+        position: newCommitteeMember.department || newCommitteeMember.role || 'Committee Member',
+        avatar: newCommitteeMember.image || 'default-avatar.png',
+        bio: `Committee member - ${newCommitteeMember.department || 'General'}`,
+        socialLinks: {
+          linkedin: '',
+          github: '',
+          twitter: ''
+        },
+        skills: ['leadership', 'organization'],
+        isActive: true
       };
+      
+      console.log("Sending member data to API:", memberData);
       
       // Try to create member via API
       try {
@@ -443,16 +521,43 @@ const AdminDashboard = () => {
         const createdMember = response.data || response;
         setCommitteeMembers(prev => [
           ...prev, 
-          { ...createdMember, id: createdMember._id || createdMember.id || prev.length + 1 }
+          { 
+            id: createdMember._id ? parseInt(createdMember._id, 16) % 10000 : prev.length + 1, // Generate a numeric ID
+            name: createdMember.name,
+            role: createdMember.role,
+            email: createdMember.email,
+            phone: newCommitteeMember.phone || '',
+            image: createdMember.avatar || '',
+            department: createdMember.position,
+            isAdmin: newCommitteeMember.isAdmin
+          }
         ]);
+        
+        toast({
+          title: 'Success',
+          description: 'Committee member added successfully!',
+        });
       } catch (apiError) {
         console.error("API error, using local state instead:", apiError);
+        
+        // Log detailed error information for debugging
+        if (apiError.response) {
+          console.error("Error response data:", apiError.response.data);
+          console.error("Error response status:", apiError.response.status);
+        }
+        
         // Fallback to local state if API fails
         const member = {
           ...newCommitteeMember,
           id: committeeMembers.length + 1
         };
         setCommitteeMembers(prev => [...prev, member]);
+        
+        toast({
+          title: 'Warning',
+          description: 'Member saved locally only. Server error occurred.',
+          variant: 'destructive',
+        });
       }
       
       // Reset form
@@ -466,10 +571,6 @@ const AdminDashboard = () => {
         isAdmin: true
       });
       setIsCommitteeDialogOpen(false);
-      toast({
-        title: 'Success',
-        description: 'Committee member added successfully!',
-      });
     } catch (error) {
       console.error('Error adding committee member:', error);
       toast({
@@ -520,10 +621,19 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, members: true }));
       
+      // Find the member to get possible MongoDB ObjectId
+      const memberToDelete = committeeMembers.find(m => m.id === id);
+      if (!memberToDelete) return;
+      
+      // Try to get MongoDB _id if it exists in member object
+      const mongoId = (memberToDelete as any)._id;
+      
       // Try to delete member via API
       try {
-        await memberService.deleteMember(id.toString());
-        console.log("Committee member deleted:", id);
+        // Use MongoDB ObjectId if available, otherwise use numeric id as string
+        const idToDelete = mongoId || id.toString();
+        await memberService.deleteMember(idToDelete);
+        console.log("Committee member deleted:", idToDelete);
       } catch (apiError) {
         console.error("API error when deleting committee member:", apiError);
       }
@@ -552,40 +662,62 @@ const AdminDashboard = () => {
   const activeEvents = events.filter(event => event.status === 'open').length;
 
   const handleAddImage = async () => {
+    if (!newImage.title || !newImage.url) {
+      toast({
+        title: "Error",
+        description: "Please provide both title and image URL",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setLoading(prev => ({ ...prev, gallery: true }));
+    
     try {
-      setLoading(prev => ({ ...prev, gallery: true }));
+      // Get current user information
+      const currentUser = localStorage.getItem('pixel_to_perfection_user') ? 
+        JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}') : { 
+          name: 'Admin User', 
+          _id: '6529d9bb9a5b4f5b63e5f376'  // Fallback admin ID
+        };
       
-      // Prepare image data for API
+      // Prepare image data for backend
       const imageData = {
         title: newImage.title,
-        url: newImage.url,
+        imageUrl: newImage.url,
         description: newImage.description || '',
-        uploadedBy: newImage.uploadedBy || localStorage.getItem('pixel_to_perfection_user') ? 
-          JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}').name : 'Admin',
+        uploadedBy: currentUser._id || currentUser.name || 'Admin',
         uploadDate: new Date().toISOString()
       };
       
-      // Try to create gallery image via API
-      try {
-        // Note: We'll need to implement the API endpoint for gallery images
-        // For now we'll just use local state, but log the data that would be sent
-        console.log("Would send gallery image data to API:", imageData);
+      console.log("Sending gallery image data to API:", imageData);
+      
+      // Use the gallery service to create the image
+      const response = await galleryService.createGalleryImage(imageData);
+      console.log("Gallery image creation response:", response);
+      
+      // Process response and add to state
+      if (response && response.data) {
+        const apiData = response.data;
+        // Create a properly formatted GalleryImage object from the response
+        const galleryImage: GalleryImage = {
+          id: apiData._id ? parseInt(apiData._id, 16) % 10000 : Date.now() % 10000, // Convert ObjectId to number or use timestamp
+          title: apiData.title || newImage.title,
+          url: apiData.imageUrl || newImage.url,
+          description: apiData.description || newImage.description || '',
+          uploadedBy: currentUser.name || 'Admin',
+          uploadDate: apiData.uploadDate || new Date().toISOString()
+        };
         
-        const image = {
-          ...newImage,
-          id: galleryImages.length + 1
-        };
-        setGalleryImages(prev => [...prev, image]);
-      } catch (apiError) {
-        console.error("API error, using local state only:", apiError);
-        const image = {
-          ...newImage,
-          id: galleryImages.length + 1
-        };
-        setGalleryImages(prev => [...prev, image]);
+        setGalleryImages(prev => [...prev, galleryImage]);
+        
+        toast({
+          title: 'Success',
+          description: 'Image added to gallery successfully!',
+        });
       }
       
-      // Reset form
+      // Reset form with proper fields for GalleryImage type
       setNewImage({
         title: '',
         url: '',
@@ -593,15 +725,24 @@ const AdminDashboard = () => {
         uploadDate: new Date().toISOString(),
         description: ''
       });
-      toast({
-        title: 'Success',
-        description: 'Image added to gallery successfully!',
-      });
     } catch (error) {
-      console.error('Error adding image to gallery:', error);
+      console.error('Error adding image:', error);
+      
+      // Create a local fallback with proper GalleryImage structure
+      const localImage: GalleryImage = {
+        id: galleryImages.length + 1,
+        title: newImage.title,
+        url: newImage.url,
+        description: newImage.description || '',
+        uploadedBy: 'Admin User',
+        uploadDate: new Date().toISOString()
+      };
+      
+      setGalleryImages(prev => [...prev, localImage]);
+      
       toast({
-        title: 'Error',
-        description: 'Failed to add image to gallery. Please try again.',
+        title: 'Warning',
+        description: 'Image saved locally only. Server error occurred.',
         variant: 'destructive',
       });
     } finally {
@@ -613,21 +754,39 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, gallery: true }));
       
-      // Note: We'll need to implement the API endpoint for gallery images deletion
-      // For now, log the data that would be sent to the API
-      console.log("Would send delete request to API for gallery image:", id);
+      // Find the image to get possible MongoDB ObjectId
+      const imageToDelete = galleryImages.find(img => img.id === id);
+      if (!imageToDelete) return;
       
-      // Update local state 
+      // Try to get MongoDB _id if it exists in image object
+      const mongoId = (imageToDelete as any)._id;
+      
+      // Try to delete from backend
+      try {
+        // Use MongoDB ObjectId if available, otherwise use numeric id as string
+        const idToDelete = mongoId || id.toString();
+        await galleryService.deleteGalleryImage(idToDelete);
+        console.log('Gallery image deleted from backend:', idToDelete);
+      } catch (error) {
+        console.error('Error deleting from backend:', error);
+      }
+      
+      // Update gallery state
       setGalleryImages(prev => prev.filter(img => img.id !== id));
+      
       toast({
         title: 'Success',
         description: 'Image deleted from gallery successfully!',
       });
     } catch (error) {
-      console.error('Error deleting image from gallery:', error);
+      console.error('Error deleting image:', error);
+      
+      // Still update local state regardless of backend error
+      setGalleryImages(prev => prev.filter(img => img.id !== id));
+      
       toast({
-        title: 'Error',
-        description: 'Failed to delete image from gallery. Please try again.',
+        title: 'Warning',
+        description: 'Image removed from local gallery. Server error occurred.',
         variant: 'destructive',
       });
     } finally {
@@ -639,36 +798,94 @@ const AdminDashboard = () => {
     try {
       setLoading(prev => ({ ...prev, budget: true }));
       
-      // Prepare budget entry data for API
-      const entryData = {
-        category: newBudgetEntry.category,
-        amount: newBudgetEntry.amount,
-        type: newBudgetEntry.type,
-        description: newBudgetEntry.description,
-        date: newBudgetEntry.date,
-        addedBy: newBudgetEntry.addedBy || localStorage.getItem('pixel_to_perfection_user') ? 
-          JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}').name : 'Admin'
+      // Get current user information
+      const currentUser = localStorage.getItem('pixel_to_perfection_user') ? 
+        JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}') : { 
+          name: 'Admin User', 
+          _id: '6529d9bb9a5b4f5b63e5f376' // Fallback admin ID
+        };
+      
+      // Find the first event to use as eventId - make sure to handle undefined values
+      const firstEvent = events && events.length > 0 ? events[0] : null;
+      
+      // Get the MongoDB _id if it exists, fall back to hardcoded eventId if needed
+      let eventId = '6529d9bb9a5b4f5b63e5f377'; // Fallback event ID
+      
+      if (firstEvent) {
+        // Try to get MongoDB _id if it exists
+        if ((firstEvent as any)._id) {
+          eventId = (firstEvent as any)._id;
+        } else if ((firstEvent as any).mongoId) {
+          eventId = (firstEvent as any).mongoId;
+        }
+        // Do not use frontend numeric IDs for MongoDB operations
+      }
+      
+      // Prepare budget data that exactly matches the Budget model schema
+      const budgetData = {
+        eventId: eventId,
+        totalAmount: typeof newBudgetEntry.amount === 'number' ? newBudgetEntry.amount : 0,
+        expenses: [
+          {
+            category: newBudgetEntry.category || 'other', // Must be one of: 'venue', 'food', 'transportation', 'materials', 'marketing', 'speaker', 'other'
+            amount: typeof newBudgetEntry.amount === 'number' ? newBudgetEntry.amount : 0,
+            description: newBudgetEntry.description || 'General expense',
+            date: new Date().toISOString(),
+            paidBy: currentUser._id || '6529d9bb9a5b4f5b63e5f376',
+            receipt: 'default-receipt.jpg', // Required field
+            status: 'pending' // One of: 'pending', 'approved', 'rejected'
+          }
+        ],
+        status: 'active', // One of: 'active', 'closed', 'cancelled'
+        createdBy: currentUser._id || '6529d9bb9a5b4f5b63e5f376'
       };
+      
+      console.log("Sending budget data to API:", budgetData);
       
       // Try to create budget entry via API
       try {
-        const response = await budgetService.createBudgetEntry(entryData);
+        const response = await budgetService.createBudgetEntry(budgetData);
         console.log("Budget entry created:", response);
         
         // If API call succeeds, use the returned data
         const createdEntry = response.data || response;
-        setBudgetEntries(prev => [
-          ...prev, 
-          { ...createdEntry, id: createdEntry._id || createdEntry.id || prev.length + 1 }
-        ]);
+        
+        // Add to local state with frontend format
+        const frontendBudgetEntry = {
+          id: createdEntry._id ? parseInt(createdEntry._id, 16) % 10000 : budgetEntries.length + 1, // Convert ObjectId to number or use index
+          category: newBudgetEntry.category,
+          amount: typeof newBudgetEntry.amount === 'number' ? newBudgetEntry.amount : 0,
+          type: newBudgetEntry.type,
+          description: newBudgetEntry.description,
+          date: newBudgetEntry.date,
+          addedBy: currentUser.name || 'Admin'
+        };
+        
+        setBudgetEntries(prev => [...prev, frontendBudgetEntry]);
+        toast({
+          title: 'Success',
+          description: 'Budget entry added successfully!',
+        });
       } catch (apiError) {
         console.error("API error, using local state instead:", apiError);
+        
+        // Log detailed error information for debugging
+        if (apiError.response) {
+          console.error("Error response data:", apiError.response.data);
+          console.error("Error response status:", apiError.response.status);
+        }
+        
         // Fallback to local state if API fails
         const entry = {
           ...newBudgetEntry,
           id: budgetEntries.length + 1
         };
         setBudgetEntries(prev => [...prev, entry]);
+        toast({
+          title: 'Warning',
+          description: 'Budget entry saved locally only. Server error occurred.',
+          variant: 'destructive',
+        });
       }
       
       // Reset form
@@ -679,10 +896,6 @@ const AdminDashboard = () => {
         description: '',
         date: new Date().toISOString(),
         addedBy: ''
-      });
-      toast({
-        title: 'Success',
-        description: 'Budget entry added successfully!',
       });
     } catch (error) {
       console.error('Error adding budget entry:', error);
@@ -696,14 +909,24 @@ const AdminDashboard = () => {
     }
   };
 
+  // Handle delete budget entry with MongoDB ObjectId
   const handleDeleteBudgetEntry = async (id: number) => {
     try {
       setLoading(prev => ({ ...prev, budget: true }));
       
+      // Find the budget entry to get possible MongoDB ObjectId
+      const entryToDelete = budgetEntries.find(entry => entry.id === id);
+      if (!entryToDelete) return;
+      
+      // Try to get MongoDB _id if it exists in entry object
+      const mongoId = (entryToDelete as any)._id;
+      
       // Try to delete budget entry via API
       try {
-        await budgetService.deleteBudgetEntry(id.toString());
-        console.log("Budget entry deleted:", id);
+        // Use MongoDB ObjectId if available, otherwise use numeric id as string
+        const idToDelete = mongoId || id.toString();
+        await budgetService.deleteBudgetEntry(idToDelete);
+        console.log("Budget entry deleted:", idToDelete);
       } catch (apiError) {
         console.error("API error when deleting budget entry:", apiError);
       }
@@ -726,14 +949,18 @@ const AdminDashboard = () => {
     }
   };
 
-  // Calculate budget statistics
+  // Calculate budget statistics with safety checks
   const totalIncome = budgetEntries
-    .filter(entry => entry.type === 'income')
-    .reduce((sum, entry) => sum + entry.amount, 0);
+    ? budgetEntries
+        .filter(entry => entry && entry.type === 'income')
+        .reduce((sum, entry) => sum + (typeof entry.amount === 'number' ? entry.amount : 0), 0)
+    : 0;
 
   const totalExpenses = budgetEntries
-    .filter(entry => entry.type === 'expense')
-    .reduce((sum, entry) => sum + entry.amount, 0);
+    ? budgetEntries
+        .filter(entry => entry && entry.type === 'expense')
+        .reduce((sum, entry) => sum + (typeof entry.amount === 'number' ? entry.amount : 0), 0)
+    : 0;
 
   const currentBalance = totalIncome - totalExpenses;
 
@@ -767,7 +994,7 @@ const AdminDashboard = () => {
               </div>
               <div>
                 <p className="text-muted-foreground">Total Budget</p>
-                <p className="text-2xl font-bold text-foreground">₹{totalBudget.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-foreground">₹{(totalBudget || 0).toLocaleString()}</p>
               </div>
             </div>
           </motion.div>
@@ -1046,11 +1273,11 @@ const AdminDashboard = () => {
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <span>{new Date(event.date).toLocaleDateString()}</span>
+                                <span>{event.date ? new Date(event.date).toLocaleDateString() : 'No date'}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">{event.location}</span>
+                                <span className="text-sm text-muted-foreground">{event.location || 'No location'}</span>
                               </div>
                             </div>
                           </TableCell>
@@ -1064,7 +1291,7 @@ const AdminDashboard = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="font-medium">₹{event.budget.toLocaleString()}</div>
+                            <div className="font-medium">₹{typeof event.budget === 'number' ? event.budget.toLocaleString() : '0'}</div>
                             {event.registrationLink && (
                               <a
                                 href={event.registrationLink}
@@ -1390,7 +1617,7 @@ const AdminDashboard = () => {
                   <CardDescription>All time income</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold text-green-500">₹{totalIncome.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-green-500">₹{(totalIncome || 0).toLocaleString()}</p>
                 </CardContent>
               </Card>
               <Card>
@@ -1399,7 +1626,7 @@ const AdminDashboard = () => {
                   <CardDescription>All time expenses</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold text-red-500">₹{totalExpenses.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-red-500">₹{(totalExpenses || 0).toLocaleString()}</p>
                 </CardContent>
               </Card>
               <Card>
@@ -1409,7 +1636,7 @@ const AdminDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <p className={`text-2xl font-bold ${currentBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    ₹{currentBalance.toLocaleString()}
+                    ₹{(currentBalance || 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -1513,7 +1740,7 @@ const AdminDashboard = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className={entry.type === 'income' ? 'text-green-500' : 'text-red-500'}>
-                        ₹{entry.amount.toLocaleString()}
+                        ₹{typeof entry.amount === 'number' ? entry.amount.toLocaleString() : '0'}
                       </TableCell>
                       <TableCell>{entry.description}</TableCell>
                       <TableCell>
