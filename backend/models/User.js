@@ -64,17 +64,23 @@ const userSchema = new mongoose.Schema({
   },
   year: {
     type: String,
-    enum: ['FE', 'SE', 'TE', 'BE'],
+    enum: ['FE', 'SE', 'TE', 'BE', 'N/A'],
     required: function() {
       return this.role === 'student';
     },
+    default: function() {
+      return this.role === 'student' ? undefined : 'N/A';
+    }
   },
   division: {
     type: String,
-    enum: ['A', 'B', 'C'],
+    enum: ['A', 'B', 'C', 'N/A'],
     required: function() {
       return this.role === 'student';
     },
+    default: function() {
+      return this.role === 'student' ? undefined : 'N/A';
+    }
   },
   skills: [{
     type: String,

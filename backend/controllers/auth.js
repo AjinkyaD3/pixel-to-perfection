@@ -41,6 +41,7 @@ exports.signup = async (req, res, next) => {
       division,
       skills,
       profilePicture,
+      registrationCode
     } = req.body;
 
     // 1. Check if user already exists
@@ -49,7 +50,16 @@ exports.signup = async (req, res, next) => {
       return next(new ErrorResponse("User already exists", 400));
     }
 
-    // 2. Create new user with all required fields
+    // 2. Validate role and registration code
+    if (role === 'admin' && registrationCode !== process.env.ADMIN_REGISTRATION_CODE) {
+      return next(new ErrorResponse("Invalid admin registration code", 401));
+    }
+
+    if (role === 'committee' && registrationCode !== process.env.COMMITTEE_REGISTRATION_CODE) {
+      return next(new ErrorResponse("Invalid committee registration code", 401));
+    }
+
+    // 3. Create new user with all required fields
     const user = await User.create({
       name,
       email,
@@ -60,20 +70,18 @@ exports.signup = async (req, res, next) => {
       division,
       skills: skills || [],
       profilePicture,
+      verified: true, // Auto-verify for development (remove for production)
     });
 
-    // 3. Generate email verification token
+    // 4. Generate email verification token (commented for development)
     // const verificationToken = user.generateEmailVerificationToken();
     await user.save({ validateBeforeSave: true });
 
-    // 4. Send verification email
+    // 5. Send verification email (commented for development)
     // await sendVerificationEmail(user.email, verificationToken);
 
-    // 5. Return response
-    res.status(201).json({
-      success: true,
-      message: "User registered successfully. Please verify your email.",
-    });
+    // 6. Auto-login after signup - return token response like login
+    sendTokenResponse(user, 201, res);
   } catch (error) {
     next(error);
   }
@@ -270,6 +278,35 @@ exports.resetPassword = async (req, res, next) => {
   }
 };
 
+// @desc    Verify reset token
+// @route   GET /api/auth/verify-reset-token/:token
+// @access  Public
+exports.verifyResetToken = async (req, res, next) => {
+  try {
+    // Get hashed token
+    const resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(req.params.token)
+      .digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return next(new ErrorResponse('Invalid or expired token', 400));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Token is valid'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Update password
 // @route   PUT /api/auth/update-password
 // @access  Private
@@ -360,12 +397,24 @@ const sendTokenResponse = (user, statusCode, res) => {
     secure: process.env.NODE_ENV === 'production'
   };
 
+  // Create user object without sensitive data
+  const userData = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar,
+    verified: user.verified,
+    createdAt: user.createdAt
+  };
+
   res
     .status(statusCode)
     .cookie('token', token, options)
     .json({
       success: true,
       token,
-      refreshToken
+      refreshToken,
+      user: userData
     });
 }; 

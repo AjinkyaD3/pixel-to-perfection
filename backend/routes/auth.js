@@ -14,7 +14,8 @@ const {
   resetPassword,
   verifyEmail,
   refreshToken,
-  updatePassword
+  updatePassword,
+  verifyResetToken
 } = require('../controllers/auth');
 
 // Test route
@@ -31,6 +32,7 @@ router.post('/login',   login);
 router.post('/google', googleLogin);
 router.post('/forgot-password',  forgotPassword);
 router.post('/reset-password/:token',  resetPassword);
+router.get('/verify-reset-token/:token', verifyResetToken);
 router.get('/verify-email/:token', verifyEmail);
 router.post('/refresh-token', refreshToken);
 

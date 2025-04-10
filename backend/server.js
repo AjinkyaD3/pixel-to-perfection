@@ -33,16 +33,36 @@ const io = new Server(httpServer, {
 
 // Connect to MongoDB - only if not already connected in test environment
 if (mongoose.connection.readyState === 0) {
-  mongoose.connect(process.env.MONGODB_URI)
+  mongoose.connect(process.env.MONGODB_URI, {
+    // Add more robust connection options
+    serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds
+    retryWrites: true,
+    w: 'majority'
+  })
     .then(() => console.log('Connected to MongoDB'))
-    .catch(err => console.error('MongoDB connection error:', err));
+    .catch(err => {
+      console.error('MongoDB connection error:', err);
+      console.log('Attempting to connect with fallback URI...');
+      
+      // Try a fallback URI if available
+      const fallbackUri = process.env.MONGODB_FALLBACK_URI || 'mongodb://localhost:27017/aces-platform';
+      
+      // Second attempt with fallback
+      mongoose.connect(fallbackUri)
+        .then(() => console.log('Connected to MongoDB fallback'))
+        .catch(fallbackErr => console.error('MongoDB fallback connection error:', fallbackErr));
+    });
 }
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN,
-  credentials: true
+  origin: ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081', 'http://127.0.0.1:5173', 'http://127.0.0.1:8080', 'http://127.0.0.1:8081'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use(cookieParser());
