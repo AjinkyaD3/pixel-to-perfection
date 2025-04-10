@@ -6,12 +6,16 @@ const authRoutes = require('./auth');
 const studentRoutes = require('./students');
 const eventRoutes = require('./events');
 const budgetRoutes = require('./budget');
+const memberRoutes = require('./members');
+const galleryRoutes = require('./gallery');
 
 // Mount routes
 router.use('/api/auth', authRoutes);
 router.use('/api/students', studentRoutes);
 router.use('/api/events', eventRoutes);
 router.use('/api/budgets', budgetRoutes);
+router.use('/api/members', memberRoutes);
+router.use('/api/gallery', galleryRoutes);
 
 // API health check route
 router.get('/api/health', (req, res) => {

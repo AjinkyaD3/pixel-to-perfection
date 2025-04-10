@@ -17,6 +17,7 @@ const AdminLogin = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const [debugInfo, setDebugInfo] = useState('');
 
   // Check if already logged in
   useEffect(() => {
@@ -26,6 +27,7 @@ const AdminLogin = () => {
     if (token && user) {
       try {
         const userData = JSON.parse(user);
+        setDebugInfo(`Found existing user: ${userData.name}, role: ${userData.role}`);
         if (userData.role === 'admin') {
           navigate('/admin/dashboard');
         }
@@ -33,7 +35,10 @@ const AdminLogin = () => {
         // Invalid user data in localStorage
         localStorage.removeItem('pixel_to_perfection_token');
         localStorage.removeItem('pixel_to_perfection_user');
+        setDebugInfo('Invalid user data in localStorage');
       }
+    } else {
+      setDebugInfo('No user found in localStorage');
     }
   }, [navigate]);
 
@@ -46,13 +51,18 @@ const AdminLogin = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setDebugInfo('Attempting login...');
     
     try {
       // Make actual API call
+      setDebugInfo(`Sending request to API for ${formData.email}`);
       const data = await authService.login(formData.email, formData.password);
+      
+      setDebugInfo(`Response received: ${JSON.stringify(data.user)}`);
       
       // Verify that the user is an admin
       if (!data || !data.user || data.user.role !== 'admin') {
+        setDebugInfo('User is not an admin');
         throw new Error('Access denied. Admin privileges required.');
       }
       
@@ -61,18 +71,23 @@ const AdminLogin = () => {
         description: 'Logged in successfully',
       });
       
+      setDebugInfo('Login successful, navigating to dashboard');
       navigate('/admin/dashboard');
     } catch (err: any) {
       console.error('Admin login error:', err);
       
       // Set appropriate error message based on the error
       if (err.response && err.response.status === 429) {
+        setDebugInfo('Rate limit exceeded');
         setError('Too many login attempts. Please try again later.');
       } else if (err.response && err.response.data && err.response.data.error) {
+        setDebugInfo(`Server error: ${err.response.data.error}`);
         setError(err.response.data.error);
       } else if (err.message.includes('Access denied')) {
+        setDebugInfo('Access denied error');
         setError('Access denied. Admin privileges required.');
       } else {
+        setDebugInfo(`General error: ${err.message}`);
         setError('Invalid credentials or insufficient permissions');
       }
       
@@ -82,7 +97,10 @@ const AdminLogin = () => {
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setLoading(prev => {
+        setDebugInfo(`Setting loading to false (was ${prev})`);
+        return false;
+      });
     }
   };
 
@@ -104,6 +122,12 @@ const AdminLogin = () => {
         {error && (
           <div className="mb-4 p-2 bg-red-500/10 border border-red-500/30 rounded text-red-500 text-sm text-center">
             {error}
+          </div>
+        )}
+        
+        {debugInfo && (
+          <div className="mb-4 p-2 bg-gray-500/10 border border-gray-500/30 rounded text-gray-300 text-xs text-center">
+            Debug: {debugInfo}
           </div>
         )}
         

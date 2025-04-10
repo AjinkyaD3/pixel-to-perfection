@@ -34,6 +34,7 @@ interface GalleryImage {
   uploadedBy: string;
   uploadDate: string;
   description?: string;
+  eventId?: string;
 }
 
 interface BudgetEntry {
@@ -176,7 +177,8 @@ const AdminDashboard = () => {
     url: '',
     uploadedBy: '',
     uploadDate: new Date().toISOString(),
-    description: ''
+    description: '',
+    eventId: ''
   });
   const [newBudgetEntry, setNewBudgetEntry] = useState<Omit<BudgetEntry, 'id'>>({
     category: '',
@@ -186,6 +188,8 @@ const AdminDashboard = () => {
     date: new Date().toISOString(),
     addedBy: ''
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isGalleryDialogOpen, setIsGalleryDialogOpen] = useState(false);
 
   // Fetch events when component mounts
   useEffect(() => {
@@ -662,10 +666,19 @@ const AdminDashboard = () => {
   const activeEvents = events.filter(event => event.status === 'open').length;
 
   const handleAddImage = async () => {
-    if (!newImage.title || !newImage.url) {
+    if (!newImage.title) {
       toast({
         title: "Error",
-        description: "Please provide both title and image URL",
+        description: "Please provide a title for the image",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!imageFile && !newImage.url) {
+      toast({
+        title: "Error",
+        description: "Please upload an image or provide an image URL",
         variant: "destructive",
       });
       return;
@@ -675,46 +688,99 @@ const AdminDashboard = () => {
     
     try {
       // Get current user information
-      const currentUser = localStorage.getItem('pixel_to_perfection_user') ? 
+      const currentUser = localStorage.getItem('pixel_to_perfection_token') ? 
         JSON.parse(localStorage.getItem('pixel_to_perfection_user') || '{}') : { 
           name: 'Admin User', 
           _id: '6529d9bb9a5b4f5b63e5f376'  // Fallback admin ID
         };
       
-      // Prepare image data for backend
-      const imageData = {
-        title: newImage.title,
-        imageUrl: newImage.url,
-        description: newImage.description || '',
-        uploadedBy: currentUser._id || currentUser.name || 'Admin',
-        uploadDate: new Date().toISOString()
-      };
+      let imageUrl = newImage.url;
       
-      console.log("Sending gallery image data to API:", imageData);
-      
-      // Use the gallery service to create the image
-      const response = await galleryService.createGalleryImage(imageData);
-      console.log("Gallery image creation response:", response);
-      
-      // Process response and add to state
-      if (response && response.data) {
-        const apiData = response.data;
-        // Create a properly formatted GalleryImage object from the response
-        const galleryImage: GalleryImage = {
-          id: apiData._id ? parseInt(apiData._id, 16) % 10000 : Date.now() % 10000, // Convert ObjectId to number or use timestamp
-          title: apiData.title || newImage.title,
-          url: apiData.imageUrl || newImage.url,
-          description: apiData.description || newImage.description || '',
-          uploadedBy: currentUser.name || 'Admin',
-          uploadDate: apiData.uploadDate || new Date().toISOString()
+      // If there's a file, use FormData to upload it
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        formData.append('title', newImage.title);
+        formData.append('description', newImage.description || '');
+        
+        // If we have an event selected, add it
+        if (newImage.eventId) {
+          formData.append('eventId', newImage.eventId);
+        }
+        
+        // Use the gallery service to create the image with file upload
+        console.log("Sending gallery image file to API:", formData);
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}/gallery`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('pixel_to_perfection_token')}`
+          },
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log("Gallery image creation response:", data);
+        
+        // Process response and add to state
+        if (data && data.data) {
+          // Create a properly formatted GalleryImage object from the response
+          const galleryImage: GalleryImage = {
+            id: data.data._id ? parseInt(data.data._id.substring(0, 8), 16) : Date.now() % 10000,
+            title: data.data.title || newImage.title,
+            url: data.data.imageUrl || newImage.url,
+            description: data.data.description || newImage.description || '',
+            uploadedBy: currentUser.name || 'Admin',
+            uploadDate: data.data.uploadDate || new Date().toISOString()
+          };
+          
+          setGalleryImages(prev => [...prev, galleryImage]);
+          
+          toast({
+            title: 'Success',
+            description: 'Image added to gallery successfully!',
+          });
+        }
+      } else {
+        // Use the existing URL approach as fallback
+        const imageData = {
+          title: newImage.title,
+          imageUrl: newImage.url,
+          description: newImage.description || '',
+          uploadedBy: currentUser._id || '6529d9bb9a5b4f5b63e5f376',
+          uploadDate: new Date().toISOString()
         };
         
-        setGalleryImages(prev => [...prev, galleryImage]);
+        console.log("Sending gallery image data to API:", imageData);
         
-        toast({
-          title: 'Success',
-          description: 'Image added to gallery successfully!',
-        });
+        // Use the gallery service to create the image
+        const response = await galleryService.createGalleryImage(imageData);
+        console.log("Gallery image creation response:", response);
+        
+        // Process response and add to state
+        if (response && response.data) {
+          const apiData = response.data;
+          // Create a properly formatted GalleryImage object from the response
+          const galleryImage: GalleryImage = {
+            id: apiData._id ? parseInt(apiData._id, 16) % 10000 : Date.now() % 10000, // Convert ObjectId to number or use timestamp
+            title: apiData.title || newImage.title,
+            url: apiData.imageUrl || newImage.url,
+            description: apiData.description || newImage.description || '',
+            uploadedBy: currentUser.name || 'Admin',
+            uploadDate: apiData.uploadDate || new Date().toISOString()
+          };
+          
+          setGalleryImages(prev => [...prev, galleryImage]);
+          
+          toast({
+            title: 'Success',
+            description: 'Image added to gallery successfully!',
+          });
+        }
       }
       
       // Reset form with proper fields for GalleryImage type
@@ -723,8 +789,15 @@ const AdminDashboard = () => {
         url: '',
         uploadedBy: '',
         uploadDate: new Date().toISOString(),
-        description: ''
+        description: '',
+        eventId: ''
       });
+      
+      // Reset file input
+      setImageFile(null);
+      
+      // Close the dialog
+      setIsGalleryDialogOpen(false);
     } catch (error) {
       console.error('Error adding image:', error);
       
@@ -732,7 +805,7 @@ const AdminDashboard = () => {
       const localImage: GalleryImage = {
         id: galleryImages.length + 1,
         title: newImage.title,
-        url: newImage.url,
+        url: imageFile ? URL.createObjectURL(imageFile) : newImage.url,
         description: newImage.description || '',
         uploadedBy: 'Admin User',
         uploadDate: new Date().toISOString()
@@ -963,6 +1036,98 @@ const AdminDashboard = () => {
     : 0;
 
   const currentBalance = totalIncome - totalExpenses;
+
+  // Gallery dialog component
+  const GalleryDialog = () => {
+    return (
+      <Dialog open={isGalleryDialogOpen} onOpenChange={setIsGalleryDialogOpen}>
+        <DialogTrigger asChild>
+          <Button
+            className="flex items-center gap-2"
+            onClick={() => setIsGalleryDialogOpen(true)}
+          >
+            <ImageIcon className="w-4 h-4" />
+            Add Image
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Image</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={newImage.title}
+                onChange={(e) => setNewImage({ ...newImage, title: e.target.value })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="image">Image Upload</Label>
+              <Input
+                id="image"
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setImageFile(e.target.files[0]);
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500 mt-1">Or provide a URL below</p>
+            </div>
+            
+            <div>
+              <Label htmlFor="url">Image URL (optional if uploading file)</Label>
+              <Input
+                id="url"
+                value={newImage.url}
+                onChange={(e) => setNewImage({ ...newImage, url: e.target.value })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={newImage.description}
+                onChange={(e) => setNewImage({ ...newImage, description: e.target.value })}
+              />
+            </div>
+            
+            {events.length > 0 && (
+              <div>
+                <Label htmlFor="eventId">Associated Event (optional)</Label>
+                <select
+                  id="eventId"
+                  className="w-full p-2 border rounded"
+                  value={newImage.eventId}
+                  onChange={(e) => setNewImage({ ...newImage, eventId: e.target.value })}
+                >
+                  <option value="">None</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id.toString()}>
+                      {event.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            <Button
+              onClick={handleAddImage}
+              disabled={loading.gallery}
+              className="w-full"
+            >
+              {loading.gallery ? 'Adding...' : 'Add Image'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -1542,46 +1707,7 @@ const AdminDashboard = () => {
           <TabsContent value="gallery" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Gallery Management</h2>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="bg-neon-green/10 text-neon-green hover:bg-neon-green/20">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Image
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Image</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="title">Title</Label>
-                      <Input
-                        id="title"
-                        value={newImage.title}
-                        onChange={(e) => setNewImage({ ...newImage, title: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="imageUrl">Image URL</Label>
-                      <Input
-                        id="imageUrl"
-                        value={newImage.url}
-                        onChange={(e) => setNewImage({ ...newImage, url: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={newImage.description}
-                        onChange={(e) => setNewImage({ ...newImage, description: e.target.value })}
-                      />
-                    </div>
-                    <Button onClick={handleAddImage} className="w-full">Add Image</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <GalleryDialog />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
